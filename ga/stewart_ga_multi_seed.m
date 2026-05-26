@@ -26,9 +26,20 @@ g_acc_val = g_acc;
 c_roll_val = c_roll;
 
 
-% Use realistic (persistent-force) wind for GA training so Ki is actually needed
-global WIND_TYPE WIND_C_RATIO WIND_R_RATIO;
-WIND_TYPE = 'realistic';
+% Respect wind parameters set by RUN_ME.m, or default to robust 'realistic' wind if run directly
+global WIND_TYPE;
+global WIND_C_RATIO;
+global WIND_R_RATIO;
+
+if isempty(WIND_TYPE)
+    WIND_TYPE = 'realistic';
+end
+
+if strcmpi(WIND_TYPE, 'combined')
+    fprintf('Active Wind Scenario: COMBINED (c:%.2f r:%.2f)\n', WIND_C_RATIO, WIND_R_RATIO);
+else
+    fprintf('Active Wind Scenario: %s\n', upper(WIND_TYPE));
+end
 
 % 1. Pre-generate different scenarios (Domain Randomization)
 fprintf('Pre-generating %d random wind and noise scenarios (Seed = %d)...\n', num_scenarios, rng_seed);
@@ -47,11 +58,11 @@ fprintf('Scenarios generated. Starting evolution...\n\n');
 % 2. GA Parameters
 POP_SIZE = pop_size;         
 GENERATIONS = generations;      
-MUTATION_IMPACT = 0.5; 
+MUTATION_IMPACT = 1.0; % Increased from 0.5 to allow larger jumps
 FAILURE_THRESHOLD = 5000; % Threshold to filter out fell_off results
 
 LB = [0,   0,    0];
-UB = [15,  30,   5];  % Ki up to 30: persistent wind benefits from strong integral
+UB = [25,  40,   10];  % Increased Kp, Ki, Kd bounds for more aggressive tuning
 
 % 3. Initialize Random Population
 pop = zeros(POP_SIZE, 3);
@@ -68,9 +79,9 @@ if show_plot
     fig = figure('Name', 'Robust GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
     ax = axes('Parent', fig, 'Color', [0.15 0.15 0.18], 'XColor', 'w', 'YColor', 'w');
     hold(ax, 'on'); grid(ax, 'on');
-    title(ax, sprintf('Robust Evolution (Avg ITAE across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
+    title(ax, sprintf('Robust Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
     xlabel(ax, 'Generation', 'Color', 'w');
-    ylabel(ax, 'Average Fitness Score', 'Color', 'w');
+    ylabel(ax, 'Average Benchmark Score', 'Color', 'w');
     h_best = plot(ax, NaN, NaN, 'g.-', 'LineWidth', 2, 'MarkerSize', 15, 'DisplayName', 'Best Fitness');
     h_avg  = plot(ax, NaN, NaN, 'y.--', 'LineWidth', 1, 'MarkerSize', 10, 'DisplayName', 'Population Average');
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
@@ -94,14 +105,15 @@ for gen = 1:GENERATIONS
     best_fitness_history(gen) = best_fitness;
     avg_fitness_history(gen)  = avg_fitness;
     
-    fprintf('Gen %2d | Avg ITAE: %7.4f | Elite Genes -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
-        gen, best_fitness, pop(1,1), pop(1,2), pop(1,3));
+    fprintf('Gen %2d | Best Score: %6.2f | Elite Genes -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
+        gen, 100 - best_fitness, pop(1,1), pop(1,2), pop(1,3));
         
     if show_plot && ishandle(fig)
-        set(h_best, 'XData', 1:gen, 'YData', best_fitness_history(1:gen));
-        set(h_avg,  'XData', 1:gen, 'YData', avg_fitness_history(1:gen));
+        % Plot the actual scores (100 - fitness) instead of fitness
+        set(h_best, 'XData', 1:gen, 'YData', 100 - best_fitness_history(1:gen));
+        set(h_avg,  'XData', 1:gen, 'YData', 100 - avg_fitness_history(1:gen));
         xlim(ax, [1 GENERATIONS]);
-        ylim(ax, [0 max(avg_fitness_history(1:gen)) * 1.2]);
+        ylim(ax, [0 max(100 - best_fitness_history(1:gen)) * 1.2]);
         drawnow;
     end
     
@@ -119,8 +131,8 @@ for gen = 1:GENERATIONS
     new_pop(1,:) = pop(1,:);
     new_pop(2,:) = pop(2,:);
     
-    % Adaptive mutation rate: explores early (0.35), exploits late (0.05)
-    mut_rate = 0.30 * (1 - gen/GENERATIONS) + 0.05;
+    % Adaptive mutation rate: explores early (0.43), exploits late (0.08)
+    mut_rate = 0.35 * (1 - gen/GENERATIONS) + 0.08;
     
     for i = 3:POP_SIZE
         % Tournament selection (k=2) from full population

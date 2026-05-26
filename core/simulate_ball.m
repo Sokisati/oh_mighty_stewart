@@ -159,6 +159,38 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         prev_ex = ex;
         prev_ey = ey;
 
+        % 5. Adaptive PID Updates (MRAC & Lyapunov)
+        if isfield(params, 'mrac') && params.mrac.active
+            e_pos_sq = ex^2 + ey^2;
+            e_vel_sq = dex^2 + dey^2;
+            e_int_sq = int_ex^2 + int_ey^2;
+            
+            dKp = params.mrac.gamma_p * e_pos_sq - params.mrac.sigma_p * (Kp_eff - Kp);
+            dKi = params.mrac.gamma_i * e_int_sq - params.mrac.sigma_i * (Ki_eff - Ki);
+            dKd = params.mrac.gamma_d * e_vel_sq - params.mrac.sigma_d * (Kd_eff - Kd);
+            
+            Kp_eff = max(Kp, Kp_eff + dKp * dt);
+            Ki_eff = max(Ki, Ki_eff + dKi * dt);
+            Kd_eff = max(Kd, Kd_eff + dKd * dt);
+            
+        elseif isfield(params, 'lyap') && params.lyap.active
+            lambda = params.lyap.lambda;
+            Sx = dex + lambda * ex;
+            Sy = dey + lambda * ey;
+            
+            dKp = params.lyap.gamma_p * (Sx * ex + Sy * ey) - params.lyap.sigma_p * (Kp_eff - Kp);
+            dKi = params.lyap.gamma_i * (Sx * int_ex + Sy * int_ey) - params.lyap.sigma_i * (Ki_eff - Ki);
+            dKd = params.lyap.gamma_d * (Sx * dex + Sy * dey) - params.lyap.sigma_d * (Kd_eff - Kd);
+            
+            Kp_eff = max(Kp, Kp_eff + dKp * dt);
+            Ki_eff = max(Ki, Ki_eff + dKi * dt);
+            Kd_eff = max(Kd, Kd_eff + dKd * dt);
+        end
+        
+        Kp_log(i) = Kp_eff;
+        Ki_log(i) = Ki_eff;
+        Kd_log(i) = Kd_eff;
+
 
         % 6. Integral with Scale-Aware Anti-Windup
         int_ex = int_ex + ex * dt;
@@ -234,6 +266,17 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         ball_vy(i+1) = ball_vy(i) + ay * dt;
         ball_x(i+1)  = ball_x(i)  + ball_vx(i+1) * dt;
         ball_y(i+1)  = ball_y(i)  + ball_vy(i+1) * dt;
+    end
+    
+    % Log final step values (N) to prevent trailing zeros due to vector pre-allocation
+    if ~fell_off
+        Kp_log(N) = Kp_eff;
+        Ki_log(N) = Ki_eff;
+        Kd_log(N) = Kd_eff;
+        pitch_log(N) = pitch_log(N-1);
+        roll_log(N)  = roll_log(N-1);
+        pitch_act(N) = pitch_act(N-1);
+        roll_act(N)  = roll_act(N-1);
     end
 
     % --- Pack results ---

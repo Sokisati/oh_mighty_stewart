@@ -1,4 +1,4 @@
-%% stewart_pid_sim.m
+%% stewart_mrac_sim.m
 %  Stewart Platform - Classic PID Ball Balancing Simulation
 %
 %  PID controller keeps the steel ball at plate center (0,0).
@@ -8,7 +8,7 @@
 %    ball accel X = (5/7)*g*sin(pitch)  ->  pitch_cmd = PID(-x_ball)
 %    ball accel Y = -(5/7)*g*sin(roll)  ->  roll_cmd  = PID(+y_ball)
 %
-%  Usage:  >> stewart_pid_sim
+%  Usage:  >> stewart_mrac_sim
 
 speed_mult = 1.0;   % fixed 1× real-time playback
 
@@ -23,6 +23,17 @@ if isempty(seed_str), seed = 1; else, seed = str2double(seed_str); end
 
 % Generate random disturbances and sensor noise for T_sim = 30s
 T_sim_pid = 30;
+% Respect wind parameters set by RUN_ME.m, or default to classic scenario if run directly
+global WIND_TYPE;
+global WIND_C_RATIO;
+global WIND_R_RATIO;
+
+if isempty(WIND_TYPE)
+    WIND_TYPE = 'combined';
+    WIND_C_RATIO = 0.25;
+    WIND_R_RATIO = 0.9;
+end
+
 disturb_table = generate_disturbances(seed, T_sim_pid);
 noise_table = generate_sensor_noise(seed, T_sim_pid, dt);
 
@@ -37,8 +48,8 @@ pos_ref_pid(:, 3) = h0;   % fixed height
 %  Output: tilt angle [rad] per meter of ball displacement
 %  Tune Kp, Ki, Kd here if response is too slow / oscillates.
 %% =========================================================
-Kp = 8;    % proportional gain [rad/m]
-Ki = 1;    % integral gain     [rad/(m*s)]
+Kp = 7.0;    % proportional gain [rad/m]
+Ki = 2.0;    % integral gain     [rad/(m*s)]
 Kd = 0.9;    % derivative gain   [rad*s/m]
 
 max_tilt = 30 * deg2rad;   % physical tilt limit [rad]
@@ -57,6 +68,16 @@ sim_params.r_limit  = r_limit;
 sim_params.max_tilt = max_tilt;
 sim_params.ball_x0  = 0.05;
 sim_params.ball_y0  = 0.03;
+
+
+fprintf('Configuring MRAC (Mode 7) Adaptive Parameters...\n');
+sim_params.mrac.active = true;
+sim_params.mrac.gamma_p = 1500.0;
+sim_params.mrac.sigma_p = 4.0;
+sim_params.mrac.gamma_i = 100.0;
+sim_params.mrac.sigma_i = 2.0;
+sim_params.mrac.gamma_d = 20.0;
+sim_params.mrac.sigma_d = 5.0;
 
 sim_result = simulate_ball(Kp, Ki, Kd, sim_params, disturb_table, noise_table);
 
@@ -184,13 +205,13 @@ axis(ax, 'manual');   % freeze limits — prevents costly recalculation on every
 xlabel(ax,'X [m]','Color',[0.8 0.8 0.8]);
 ylabel(ax,'Y [m]','Color',[0.8 0.8 0.8]);
 zlabel(ax,'Z [m]','Color',[0.8 0.8 0.8]);
-title(ax,'PID Ball Balancing - Stewart Platform', ...
+title(ax,'MRAC Adaptive PID - Stewart Platform', ...
       'Color',[0.95 0.95 0.95],'FontSize',13,'FontWeight','bold');
 
 % Info text
 time_txt  = text(ax,-lim*.9,-lim*.9,h0*2.2,'t = 0.00 s', ...
     'Color',[0.9 0.9 0.2],'FontSize',10,'FontWeight','bold');
-mode_txt  = text(ax,-lim*.9,-lim*.9,h0*2.05,'PID: ON', ...
+mode_txt  = text(ax,-lim*.9,-lim*.9,h0*2.05,'MRAC: ON', ...
     'Color',[0.3 1.0 0.4],'FontSize',10,'FontWeight','bold');
 
 global WIND_TYPE;
@@ -200,7 +221,7 @@ if isempty(WIND_TYPE), WIND_TYPE = 'chaotic'; end
 if strcmpi(WIND_TYPE, 'combined')
     if isempty(WIND_C_RATIO), WIND_C_RATIO = 0.3; end
     if isempty(WIND_R_RATIO), WIND_R_RATIO = 1.0; end
-    wind_disp = sprintf('Wind: COMBINED (c:%.1f r:%.1f)', WIND_C_RATIO, WIND_R_RATIO);
+    wind_disp = sprintf('Wind: COMBINED (c:%.2f r:%.2f)', WIND_C_RATIO, WIND_R_RATIO);
 else
     wind_disp = sprintf('Wind: %s', upper(WIND_TYPE));
 end
@@ -283,11 +304,17 @@ for i = 1:N
     set(h_trail,'XData',trail_buf(:,1),'YData',trail_buf(:,2),'ZData',trail_buf(:,3),'Color',tc);
 
     set(time_txt,'String',sprintf('t = %.2f s', t_vec(i)));
+
+    % DYNAMIC TEXT UPDATE FOR ADAPTIVE GAINS
+    set(kp_txt,'String',sprintf('Kp: %.2f', sim_result.Kp_log(i)));
+    set(ki_txt,'String',sprintf('Ki: %.2f', sim_result.Ki_log(i)));
+    set(kd_txt,'String',sprintf('Kd: %.2f', sim_result.Kd_log(i)));
+
     is_disturb = any(abs(t_vec(i) - disturb_table(:,1)) < 0.4);
     if is_disturb
         set(mode_txt,'String','DISTURBANCE!','Color',[1.0 0.3 0.2]);
     else
-        set(mode_txt,'String','PID: ON','Color',[0.3 1.0 0.4]);
+        set(mode_txt,'String','MRAC: ON','Color',[0.3 1.0 0.4]);
     end
 
     drawnow; % raw drawnow for max smoothness
@@ -358,7 +385,7 @@ title('Ball Distance from Center','Color',[0.95 0.95 0.95],'FontWeight','bold');
 %  PERFORMANCE METRICS CALCULATION
 %% =========================================================
 fprintf('\n================================================\n');
-fprintf('         PID PERFORMANCE METRICS\n');
+fprintf('         MRAC PERFORMANCE METRICS\n');
 fprintf('================================================\n');
 
 d0 = dist_pid(1);
