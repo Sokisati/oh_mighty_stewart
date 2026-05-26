@@ -1,4 +1,4 @@
-function fitness = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, max_tilt, disturbances, noises, ctrl_lambda)
+function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, max_tilt, disturbances, noises, ctrl_lambda)
 % EVALUATE_FITNESS_ROBUST  Multi-objective fitness across multiple wind/noise scenarios.
 %   Uses the exact Ultimate Benchmark scoring formula to train the GA!
 
@@ -33,11 +33,14 @@ function fitness = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, ma
 
     scores = zeros(num_scenarios, 1);
 
+    num_drops = 0;
+
     for s = 1:num_scenarios
         result = simulate_ball(Kp, Ki, Kd, params, disturbances{s}, noises{s});
         
         if result.fell_off
             has_drop = true;
+            num_drops = num_drops + 1;
             scores(s) = config.drop_penalty;
             continue;
         end
@@ -101,9 +104,9 @@ function fitness = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, ma
     % Robust score blend: 70% average case + 30% worst-case minimum score
     robust_score = 0.7 * avg_score + 0.3 * min_score;
 
-    if has_drop
-        fitness = 1e9 + (100 - robust_score); % Absolute disqualification but preserves gradient
+    if num_drops > 0
+        fitness = 1e5 * num_drops + (100 - robust_score);
     else
-        fitness = 100 - robust_score; % Minimize fitness = Maximize score
+        fitness = 100 - robust_score;
     end
 end

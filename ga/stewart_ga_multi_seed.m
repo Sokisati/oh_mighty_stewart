@@ -71,8 +71,13 @@ for i = 1:POP_SIZE
 end
 
 fitness_scores = zeros(POP_SIZE, 1);
+robust_scores = zeros(POP_SIZE, 1);
+num_drops = zeros(POP_SIZE, 1);
+
 best_fitness_history = zeros(GENERATIONS, 1);
 avg_fitness_history = zeros(GENERATIONS, 1);
+best_score_history = zeros(GENERATIONS, 1);
+avg_score_history = zeros(GENERATIONS, 1);
 
 % 4. Live Plotting
 if show_plot
@@ -92,28 +97,35 @@ max_tilt_rad = 30 * deg2rad;
 for gen = 1:GENERATIONS
     % A) Evaluate Fitness across all scenarios
     parfor i = 1:POP_SIZE
-        fitness_scores(i) = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
+        [fitness_scores(i), robust_scores(i), num_drops(i)] = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
     end
     
     [fitness_scores, sort_idx] = sort(fitness_scores);
     pop = pop(sort_idx, :);
+    robust_scores = robust_scores(sort_idx);
+    num_drops = num_drops(sort_idx);
     
     best_fitness = fitness_scores(1);
     survivors = fitness_scores(fitness_scores < FAILURE_THRESHOLD);
     if isempty(survivors), avg_fitness = best_fitness; else, avg_fitness = mean(survivors); end
     
+    best_robust = robust_scores(1);
+    best_drops  = num_drops(1);
+    
     best_fitness_history(gen) = best_fitness;
     avg_fitness_history(gen)  = avg_fitness;
+    best_score_history(gen)   = best_robust;
+    avg_score_history(gen)    = mean(robust_scores);
     
-    fprintf('Gen %2d | Best Score: %6.2f | Elite Genes -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
-        gen, 100 - best_fitness, pop(1,1), pop(1,2), pop(1,3));
+    fprintf('Gen %2d | Best Score: %6.2f | Drops: %2d | Elite Genes -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
+        gen, best_robust, best_drops, pop(1,1), pop(1,2), pop(1,3));
         
     if show_plot && ishandle(fig)
-        % Plot the actual scores (100 - fitness) instead of fitness
-        set(h_best, 'XData', 1:gen, 'YData', 100 - best_fitness_history(1:gen));
-        set(h_avg,  'XData', 1:gen, 'YData', 100 - avg_fitness_history(1:gen));
+        % Plot the actual clean benchmark scores
+        set(h_best, 'XData', 1:gen, 'YData', best_score_history(1:gen));
+        set(h_avg,  'XData', 1:gen, 'YData', avg_score_history(1:gen));
         xlim(ax, [1 GENERATIONS]);
-        ylim(ax, [0 max(100 - best_fitness_history(1:gen)) * 1.2]);
+        ylim(ax, [0 max(best_score_history(1:gen)) * 1.2]);
         drawnow;
     end
     
