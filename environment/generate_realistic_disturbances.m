@@ -14,11 +14,12 @@ function F_table = generate_realistic_disturbances(seed, T_sim, params)
 %                [time(s), kick_vx(m/s), kick_vy(m/s)]
 
     if nargin < 3 || isempty(params)
-        params.min_interval = 0.28;   % [s] (slightly more frequent than chaotic)
-        params.max_interval = 0.36;   % [s]
-        params.min_force    = 0.3;  % [m/s]
-        params.max_force    = 0.35;  % [m/s]
-        params.angle_spread = 10;    % [deg] - std dev of random scatter around base angle
+        config = load_config();
+        params.min_interval = config.real_min_interval;
+        params.max_interval = config.real_max_interval;
+        params.min_force    = config.real_min_force;
+        params.max_force    = config.real_max_force;
+        params.angle_spread = config.real_angle_spread;
     end
 
     % Initialize deterministic RNG

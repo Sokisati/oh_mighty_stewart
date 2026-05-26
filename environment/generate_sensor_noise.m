@@ -14,11 +14,11 @@ function noise_table = generate_sensor_noise(seed, T_sim, dt, params)
 %                    [time(s), noise_x(m), noise_y(m)]
 
     if nargin < 4 || isempty(params)
-        % Çok düşük seviyeli sensör gürültüsü
-        params.sigma_white = 0.00002; % [m] Yüksek frekanslı kamera piksel titremesi (0.05 mm)
-        params.sigma_rw    = 0.00001; % [m] Düşük frekanslı sensör kayması (0.02 mm)
-        params.spike_prob  = 0.0001;  % [%0.05] Ani parlama hatası ihtimali (Çok nadir)
-        params.spike_mag   = 0.0001;   % [m] Hata genliği (Maksimum 1 mm)
+        config = load_config();
+        params.sigma_white = config.noise_sigma_white;
+        params.sigma_rw    = config.noise_sigma_rw;
+        params.spike_prob  = config.noise_spike_prob;
+        params.spike_mag   = config.noise_spike_mag;
     end
 
     % Initialize deterministic RNG (Aynı seed = Aynı gürültü profili)

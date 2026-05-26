@@ -1,3 +1,4 @@
+%% 
 %% RUN_ME.m
 %  ============================================================
 %  STEWART PLATFORM - MAIN ENTRY POINT
@@ -30,9 +31,10 @@ if isempty(choice), choice = '1'; end
 
 % If not running the benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
 if ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6')
-    % Default Classic Scenario ratios (edit these to change the defaults globally)
-    classic_c_ratio = 0.6;
-    classic_r_ratio = 1;
+    % Default Classic Scenario ratios (loaded from config.txt)
+    config = load_config();
+    classic_c_ratio = config.classic_c_ratio;
+    classic_r_ratio = config.classic_r_ratio;
 
     fprintf('\nSelect Wind Type for Simulation:\n');
     fprintf('  [1] Chaotic Wind   (Swirling, random directions)\n');

@@ -13,13 +13,14 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %                [time(s), kick_vx(m/s), kick_vy(m/s)]
 
     if nargin < 3 || isempty(params)
-        params.min_interval = 1.8;   % [s]
-        params.max_interval = 3;   % [s]
-        params.min_force    = 0.45;  % [m/s]
-        params.max_force    = 0.75;  % [m/s]
-        params.angle_drift_speed = 25; % [deg/s] - how fast the dominant angle rotates
-        params.angle_spread = 30;      % [deg]   - std dev of random scatter around dominant angle
-        params.anti_cancel_deg = 45;   % [deg]   - minimum angle difference from exactly opposite
+        config = load_config();
+        params.min_interval = config.chao_min_interval;
+        params.max_interval = config.chao_max_interval;
+        params.min_force    = config.chao_min_force;
+        params.max_force    = config.chao_max_force;
+        params.angle_drift_speed = config.chao_angle_drift_speed;
+        params.angle_spread = config.chao_angle_spread;
+        params.anti_cancel_deg = config.chao_anti_cancel_deg;
     end
 
     % Initialize deterministic RNG

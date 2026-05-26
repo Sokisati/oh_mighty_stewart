@@ -43,3 +43,37 @@ Kd           = 0.9      # Derivative gain [rad*s/m]
 # -------------------------------------------------------------------------
 dt           = 0.02     # Time step [seconds] (100 Hz simulation for stability)
 T_sim        = 30.0     # Simulation duration [seconds]
+
+# -------------------------------------------------------------------------
+# REALISTIC WIND PARAMETERS
+# -------------------------------------------------------------------------
+real_min_interval = 0.28   # Minimum interval between kicks [seconds]
+real_max_interval = 0.36   # Maximum interval between kicks [seconds]
+real_min_force    = 0.30   # Minimum kick magnitude/force [m/s]
+real_max_force    = 0.35   # Maximum kick magnitude/force [m/s]
+real_angle_spread = 10.0   # Angular standard deviation around base wind angle [degrees]
+
+# -------------------------------------------------------------------------
+# CHAOTIC WIND PARAMETERS
+# -------------------------------------------------------------------------
+chao_min_interval = 1.8    # Minimum interval between chaotic kicks [seconds]
+chao_max_interval = 3.0    # Maximum interval between chaotic kicks [seconds]
+chao_min_force    = 0.45   # Minimum chaotic kick magnitude/force [m/s]
+chao_max_force    = 0.75   # Maximum chaotic kick magnitude/force [m/s]
+chao_angle_drift_speed = 25.0 # Speed of dominant angle rotation [degrees/second]
+chao_angle_spread = 30.0   # Angular standard deviation of wind direction [degrees]
+chao_anti_cancel_deg = 45.0 # Anti-cancellation angle margin to avoid opposite kicks [degrees]
+
+# -------------------------------------------------------------------------
+# SENSOR NOISE PARAMETERS
+# -------------------------------------------------------------------------
+noise_sigma_white = 0.00002 # High frequency camera pixel jitter standard deviation [m]
+noise_sigma_rw    = 0.00001 # Low frequency sensor drift (random walk) step standard deviation [m]
+noise_spike_prob  = 0.0001  # Probability of a camera reading spike (outlier) per step
+noise_spike_mag   = 0.0001  # Maximum amplitude of reading spikes [m]
+
+# -------------------------------------------------------------------------
+# CLASSIC WIND SCENARIO RATIOS (for RUN_ME.m simulation)
+# -------------------------------------------------------------------------
+classic_c_ratio   = 0.6    # Default chaotic wind blend ratio
+classic_r_ratio   = 1.0    # Default realistic wind blend ratio
