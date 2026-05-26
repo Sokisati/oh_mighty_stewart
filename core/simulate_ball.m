@@ -53,15 +53,19 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     if isfield(params, 'ball_x0'), ball_x0 = params.ball_x0; else, ball_x0 = 0.05; end
     if isfield(params, 'ball_y0'), ball_y0 = params.ball_y0; else, ball_y0 = 0.03; end
 
-    % Actuator delay (circular buffer size)
-    % Default: 1 steps = 20 ms at dt=0.02s
+    % Actuator delay in seconds
+    % Default: 20 ms (0.020 s)
     % This models: sensor read latency + compute time + servo physical response
-    if isfield(params, 'delay_steps'), delay_steps = params.delay_steps; else, delay_steps = 1; end
-    delay_steps = max(0, round(delay_steps));  % enforce non-negative integer
+    if isfield(params, 'delay_sec'), delay_sec = params.delay_sec; else, delay_sec = 0.020; end
+    
+    % Calculate fractional delay steps based on dt
+    delay_steps = max(0, delay_sec / dt);
+    int_delay   = floor(delay_steps);
+    frac_delay  = delay_steps - int_delay;
     
     % Slew rate (maximum platform angular velocity in rad/s)
-    % Default: 60 degrees/sec = ~1.047 rad/s
-    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 60 * (pi/180); end
+    % Default: 350 degrees/sec (Realistic hobby servo speed)
+    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 350 * (pi/180); end
 
     % Gain Scheduling parameters (0 = disabled = plain PID)
     if isfield(params, 'gs_alpha_p'), gs_alpha_p = params.gs_alpha_p; else, gs_alpha_p = 0; end
@@ -95,12 +99,11 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     ball_y(1) = ball_y0;
 
     % --- Actuator delay circular buffer ---
-    % Stores the last (delay_steps+1) commands. When delay_steps=0 the
-    % buffer has size 1 and the command is applied immediately.
-    buf_size  = delay_steps + 1;
-    buf_pitch = zeros(buf_size, 1);
-    buf_roll  = zeros(buf_size, 1);
-    buf_head  = 1;  % next write position (1-indexed, wraps around)
+    % Stores the last few commands for fractional interpolation.
+    buf_size  = int_delay + 2; % +1 for current, +1 for fractional interpolation
+    pitch_buf = zeros(buf_size, 1);
+    roll_buf  = zeros(buf_size, 1);
+    buf_idx   = 1;  % next write position (1-indexed, wraps around)
 
     % Physical state of the platform (for Slew Rate Limiting)
     pitch_phys = 0;
@@ -124,24 +127,17 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     fell_off = false;
     fall_time = NaN;
 
-    % --- Continuous wind force interpolation ---
-    % disturb_table rows: [t_start, ax_wind, ay_wind]
-    % Active wind = the row whose t_start is <= current time.
-    % Wind persists (constant acceleration) until the next row changes it.
-    has_wind = (size(disturb_table, 1) > 0);
-    ax_wind_cur = 0;
-    ay_wind_cur = 0;
-    wind_row = 0;   % index of currently active wind row
+    % --- Discrete disturbances (velocity kicks) ---
+    has_kick = (size(disturb_table, 1) > 0);
+    next_kick = 1;
 
     % --- Physics loop ---
     for i = 1:N-1
-        % 1. Update active wind segment
-        if has_wind
-            while wind_row < size(disturb_table, 1) && t_vec(i) >= disturb_table(wind_row+1, 1)
-                wind_row = wind_row + 1;
-                ax_wind_cur = disturb_table(wind_row, 2);
-                ay_wind_cur = disturb_table(wind_row, 3);
-            end
+        % 1. Apply discrete velocity kicks
+        if has_kick && next_kick <= size(disturb_table, 1) && t_vec(i) >= disturb_table(next_kick, 1)
+            ball_vx(i) = ball_vx(i) + disturb_table(next_kick, 2);
+            ball_vy(i) = ball_vy(i) + disturb_table(next_kick, 3);
+            next_kick = next_kick + 1;
         end
 
         % 2. Sensor reading (with or without noise)
@@ -217,17 +213,18 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         roll_log(i)  = roll_cmd_i;
 
         % 8. Actuator delay & Slew Rate Limiting
-        % Write new command into circular buffer
-        buf_pitch(buf_head) = pitch_cmd_i;
-        buf_roll(buf_head)  = roll_cmd_i;
-
-        % Read head points to the oldest entry = what reaches the servo now
-        read_head = mod(buf_head, buf_size) + 1;
-        pitch_target = buf_pitch(read_head);
-        roll_target  = buf_roll(read_head);
-
-        % Advance write head
-        buf_head = read_head;
+        % Buffer insertion
+        pitch_buf(buf_idx) = pitch_cmd_i;
+        roll_buf(buf_idx)  = roll_cmd_i;
+        
+        % Read from delay buffer with fractional interpolation
+        idx_1 = mod(buf_idx - int_delay - 1, buf_size) + 1;
+        idx_2 = mod(buf_idx - int_delay - 2, buf_size) + 1;
+        
+        pitch_target = (1 - frac_delay) * pitch_buf(idx_1) + frac_delay * pitch_buf(idx_2);
+        roll_target  = (1 - frac_delay) * roll_buf(idx_1)  + frac_delay * roll_buf(idx_2);
+        
+        buf_idx = mod(buf_idx, buf_size) + 1;
 
         % Slew Rate Limiting (Motor velocity limit)
         max_step = slew_rate * dt;
@@ -257,9 +254,9 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         t_i = i * dt;
         itae = itae + (t_i * dist_from_center * dt);
 
-        % 10. Ball dynamics with DELAYED tilt + continuous wind force (Symplectic Euler)
-        ax = (5/7) * g_acc * sin(pitch_applied) - c_roll * ball_vx(i) + ax_wind_cur;
-        ay = -(5/7) * g_acc * sin(roll_applied)  - c_roll * ball_vy(i) + ay_wind_cur;
+        % 10. Ball dynamics with DELAYED tilt (Symplectic Euler)
+        ax = (5/7) * g_acc * sin(pitch_applied) - c_roll * ball_vx(i);
+        ay = -(5/7) * g_acc * sin(roll_applied)  - c_roll * ball_vy(i);
 
         ball_vx(i+1) = ball_vx(i) + ax * dt;
         ball_vy(i+1) = ball_vy(i) + ay * dt;

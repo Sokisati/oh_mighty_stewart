@@ -93,15 +93,22 @@ a4 = [safe_avg(R4(:,1)), safe_avg(R4(:,2)), safe_avg(R4(:,3)), safe_avg(R4(:,4))
 w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10];
 score = @(a) 100 * sum(w .* max(0, 2 - (a ./ a1)));
 
-s1 = score(a1);
-s2 = score(a2);
-s3 = score(a3);
-s4 = score(a4);
+s1 = score(a1); if a1(5) > 1000000, s1 = 0.0; end
+s2 = score(a2); if a2(5) > 1000000, s2 = 0.0; end
+s3 = score(a3); if a3(5) > 1000000, s3 = 0.0; end
+s4 = score(a4); if a4(5) > 1000000, s4 = 0.0; end
 
 str1 = sprintf('1. Classic PID (%.1f, %.1f, %.1f)', base_Kp, base_Ki, base_Kd);
+if a1(5) > 1000000, str1 = [str1 ' [FAILED]']; end
+
 str2 = sprintf('2. Gain Sched. (%.1f, %.1f, %.1f)', gs_Kp, gs_Ki, gs_Kd);
+if a2(5) > 1000000, str2 = [str2 ' [FAILED]']; end
+
 str3 = sprintf('3. Genetic Alg (%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
+if a3(5) > 1000000, str3 = [str3 ' [FAILED]']; end
+
 str4 = sprintf('4. Hybrid GS+GA(%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
+if a4(5) > 1000000, str4 = [str4 ' [FAILED]']; end
 
 fprintf('\n============================================================================================================================================================\n');
 fprintf('                                                   FINAL BENCHMARK RESULTS (Averaged over %d tests)\n', num_val);

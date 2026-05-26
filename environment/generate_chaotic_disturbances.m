@@ -1,5 +1,5 @@
 function F_table = generate_chaotic_disturbances(seed, T_sim, params)
-% GENERATE_CHAOTIC_DISTURBANCES Produces a sequence of continuous chaotic wind acceleration.
+% GENERATE_CHAOTIC_DISTURBANCES Produces a sequence of pseudo-random disturbance kicks.
 %
 %   F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %
@@ -10,13 +10,13 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %
 %   Output:
 %       F_table: [N x 3] matrix where each row is:
-%                [time(s), ax(m/s^2), ay(m/s^2)]
+%                [time(s), kick_vx(m/s), kick_vy(m/s)]
 
     if nargin < 3 || isempty(params)
         params.min_interval = 0.8;   % [s]
         params.max_interval = 1.5;   % [s]
-        params.min_force    = 0.25;  % [m/s]
-        params.max_force    = 0.65;  % [m/s]
+        params.min_force    = 0.3;  % [m/s]
+        params.max_force    = 0.6;  % [m/s]
         params.angle_drift_speed = 25; % [deg/s] - how fast the dominant angle rotates
         params.angle_spread = 30;      % [deg]   - std dev of random scatter around dominant angle
         params.anti_cancel_deg = 45;   % [deg]   - minimum angle difference from exactly opposite
@@ -65,10 +65,10 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
         
         % 6. Convert to X-Y components
         angle_rad = angle_deg * pi / 180;
-        ax = force * cos(angle_rad);
-        ay = force * sin(angle_rad);
+        vx = force * cos(angle_rad);
+        vy = force * sin(angle_rad);
         
         % Append to table
-        F_table = [F_table; t_current, ax, ay];
+        F_table = [F_table; t_current, vx, vy];
     end
 end

@@ -1,5 +1,5 @@
 function F_table = generate_realistic_disturbances(seed, T_sim, params)
-% GENERATE_REALISTIC_DISTURBANCES Produces a sequence of continuous wind acceleration
+% GENERATE_REALISTIC_DISTURBANCES Produces a sequence of wind disturbance kicks
 % blowing from a single consistent direction, similar to real weather.
 %
 %   F_table = generate_realistic_disturbances(seed, T_sim, params)
@@ -11,13 +11,13 @@ function F_table = generate_realistic_disturbances(seed, T_sim, params)
 %
 %   Output:
 %       F_table: [N x 3] matrix where each row is:
-%                [time(s), ax(m/s^2), ay(m/s^2)]
+%                [time(s), kick_vx(m/s), kick_vy(m/s)]
 
     if nargin < 3 || isempty(params)
         params.min_interval = 0.3;   % [s] (slightly more frequent than chaotic)
         params.max_interval = 0.4;   % [s]
-        params.min_force    = 0.2;  % [m/s]
-        params.max_force    = 0.3;  % [m/s]
+        params.min_force    = 0.1;  % [m/s]
+        params.max_force    = 0.2;  % [m/s]
         params.angle_spread = 10;    % [deg] - std dev of random scatter around base angle
     end
 
@@ -53,10 +53,10 @@ function F_table = generate_realistic_disturbances(seed, T_sim, params)
         
         % 4. Convert to X-Y components
         angle_rad = angle_deg * pi / 180;
-        ax = force * cos(angle_rad);
-        ay = force * sin(angle_rad);
+        vx = force * cos(angle_rad);
+        vy = force * sin(angle_rad);
         
         % Append to table
-        F_table = [F_table; t_current, ax, ay];
+        F_table = [F_table; t_current, vx, vy];
     end
 end

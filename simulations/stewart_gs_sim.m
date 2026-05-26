@@ -36,8 +36,8 @@ pos_ref_gs(:, 3) = h0;   % fixed height
 %  GAIN SCHEDULING PARAMETERS
 %% =========================================================
 Kp_0 = 15;
-Kd_0 = 6;
-Ki_0 = 3; % Integral effect (set > 0 for steady realistic wind)
+Kd_0 = 2;
+Ki_0 = 5; % Integral effect (set > 0 for steady realistic wind)
 
 % Gain Scaling Factors (Increase per meter of error)
 alpha_p = 250.0; 
