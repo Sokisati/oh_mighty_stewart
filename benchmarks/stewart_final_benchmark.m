@@ -35,12 +35,11 @@ num_wind_modes = length(WIND_SCENARIOS);
 num_val = 100;
 validation_seeds = randi([20001, 30000], 1, num_val);
 
-% Base PID parameters (Read directly from source files!)
-extract_param = @(file, param) str2double(regexp(fileread(file), sprintf('%s\\s*=\\s*([0-9\\.]+)', param), 'tokens', 'once'));
-
-base_Kp = extract_param('simulations/stewart_pid_sim.m', 'Kp');
-base_Ki = extract_param('simulations/stewart_pid_sim.m', 'Ki');
-base_Kd = extract_param('simulations/stewart_pid_sim.m', 'Kd');
+% Base PID parameters (Loaded dynamically from central config.txt)
+config = load_config();
+base_Kp = config.Kp;
+base_Ki = config.Ki;
+base_Kd = config.Kd;
 
 % Performance logs for each scenario
 R1_all = cell(num_wind_modes, 1);

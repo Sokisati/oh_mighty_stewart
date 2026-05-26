@@ -53,20 +53,27 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     if isfield(params, 'ball_x0'), ball_x0 = params.ball_x0; else, ball_x0 = 0.05; end
     if isfield(params, 'ball_y0'), ball_y0 = params.ball_y0; else, ball_y0 = 0.03; end
 
-    % Actuator delay in seconds
-    % Default: 20 ms (0.020 s)
-    % This models: sensor read latency + compute time + servo physical response
-    % User requested 40ms delay (0.040)
-    if isfield(params, 'delay_sec'), delay_sec = params.delay_sec; else, delay_sec = 0.040; end
+    % Load default delay and slew rate from config.txt as a struct
+    config = load_config();
+
+    % Actuator delay in seconds (from config.txt or overridden by params)
+    if isfield(params, 'delay_sec')
+        delay_sec = params.delay_sec;
+    else
+        delay_sec = config.delay_sec;
+    end
     
     % Calculate fractional delay steps based on dt
     delay_steps = max(0, delay_sec / dt);
     int_delay   = floor(delay_steps);
     frac_delay  = delay_steps - int_delay;
     
-    % Slew rate (maximum platform angular velocity in rad/s)
-    % Default: 250 degrees/sec (Realistic hobby servo speed)
-    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 250 * (pi/180); end
+    % Slew rate (from config.txt or overridden by params)
+    if isfield(params, 'slew_rate')
+        slew_rate = params.slew_rate;
+    else
+        slew_rate = config.slew_rate_deg * (pi/180);
+    end
 
     % Gain Scheduling parameters removed (all GS logic deleted)
 

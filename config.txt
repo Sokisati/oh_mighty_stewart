@@ -1,0 +1,45 @@
+# =========================================================================
+# STEWART PLATFORM - CENTRAL CONFIGURATION FILE (config.txt)
+# All physical, geometric, PID, and actuator parameters are defined here.
+# Comments start with '#' or '%' and are completely ignored by the loader.
+# =========================================================================
+
+# -------------------------------------------------------------------------
+# GEOMETRIC PARAMETERS
+# -------------------------------------------------------------------------
+R_base       = 0.20     # Base plate radius [m]
+R_top        = 0.12     # Top plate radius [m]
+h0           = 0.20     # Home position height (base to top) [m]
+alpha_b_deg  = 0.0      # Base cluster separation angle [degrees]
+alpha_t_deg  = 20.0     # Top cluster spread angle [degrees]
+
+# -------------------------------------------------------------------------
+# PHYSICAL PARAMETERS
+# -------------------------------------------------------------------------
+rho          = 7850     # Steel density [kg/m^3]
+t_plt        = 0.006    # Plate thickness [m]
+r_out        = 0.010    # Piston outer radius [m]
+r_in         = 0.007    # Piston inner radius [m]
+g_acc        = 9.81     # Gravity acceleration [m/s^2]
+r_ball       = 0.013    # Ball radius [m] (Volume reduced from original 15mm -> 13mm)
+c_roll       = 0.8      # Rolling damping [1/s]
+
+# -------------------------------------------------------------------------
+# ACTUATOR & MOTOR PARAMETERS
+# -------------------------------------------------------------------------
+delay_sec    = 0.040    # Actuator loop delay [seconds] (sensor latency + servo time)
+slew_rate_deg = 250.0   # Maximum platform angular velocity [degrees/second]
+max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
+
+# -------------------------------------------------------------------------
+# DEFAULT/CLASSIC PID GAINS
+# -------------------------------------------------------------------------
+Kp           = 8.0      # Proportional gain [rad/m]
+Ki           = 1.0      # Integral gain [rad/(m*s)]
+Kd           = 0.9      # Derivative gain [rad*s/m]
+
+# -------------------------------------------------------------------------
+# SIMULATION PARAMETERS
+# -------------------------------------------------------------------------
+dt           = 0.02     # Time step [seconds] (100 Hz simulation for stability)
+T_sim        = 30.0     # Simulation duration [seconds]

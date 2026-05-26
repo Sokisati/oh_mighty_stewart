@@ -18,17 +18,12 @@
 
 deg2rad = pi / 180;
 
-R_base  = 0.20;   % Base plate radius [m]
-R_top   = 0.12;   % Top plate radius  [m]
-h0      = 0.20;   % Home position height (base to top) [m]
+% Load parameters from central configuration file
+load_config;
 
-% Attachment point offsets.
-%   alpha_b : small separation between the two base points of each pair
-%             (looks like photo - close but not identical)
-%   alpha_t : spread of the two top points of each pair (fan-out)
-%   NO phi offset between base and top pairs -> legs rise straight up
-alpha_b =  0 * deg2rad;   % Base half-angle [rad]  -- both legs share exact same base point
-alpha_t = 20 * deg2rad;   % Top  half-angle [rad]
+% Attachment point offsets in radians (converted from degrees)
+alpha_b = alpha_b_deg * deg2rad;
+alpha_t = alpha_t_deg * deg2rad;
 
 %% =========================================================
 %  COMPUTE ATTACHMENT POINTS
@@ -75,10 +70,7 @@ fprintf('===================================\n\n');
 %  PHYSICAL PARAMETERS
 %% =========================================================
 
-rho   = 7850;          % Steel density [kg/m^3]
-t_plt = 0.006;         % Plate thickness [m]
-r_out = 0.010;         % Piston outer radius [m]
-r_in  = 0.007;         % Piston inner radius [m]
+% Physical parameters loaded dynamically from config.txt
 
 L_lower = 0.65 * L0(1);   % Lower leg body length
 L_upper = 0.65 * L0(1);   % Upper leg body length
@@ -91,8 +83,7 @@ m_leg   = rho * pi * (r_out^2 - r_in^2) * L_lower;
 %  MOTION PROFILE  (pre-computed, sinusoidal demo)
 %% =========================================================
 
-T_sim = 15.0;    % Total simulation time [s]
-dt    = 0.01;    % Time step [s]  (100 Hz physics for stability)
+% Simulation parameters loaded dynamically from config.txt
 t_vec = (0 : dt : T_sim)';
 
 % motion struct (used by build_simulink.m)
@@ -162,9 +153,7 @@ fprintf('  Leg length range: [%.4f, %.4f] m\n\n', ...
 %  ball_world(i,:) = [X, Y, Z] in world frame, stored for every step
 %% =========================================================
 
-g_acc   = 9.81;    % [m/s^2]
-r_ball  = 0.013;   % ball radius [m]  (volume -33% from original 15mm → 13mm)
-c_roll  = 0.8;     % rolling damping [1/s]
+% Ball dynamic parameters loaded dynamically from config.txt
 
 % Effective boundary: ball center must stay within this radius on the plate
 % (A ball falls when its contact point / center of mass passes the edge)
