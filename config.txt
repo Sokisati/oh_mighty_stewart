@@ -77,3 +77,9 @@ noise_spike_mag   = 0.0001  # Maximum amplitude of reading spikes [m]
 # -------------------------------------------------------------------------
 classic_c_ratio   = 0.6    # Default chaotic wind blend ratio
 classic_r_ratio   = 1.0    # Default realistic wind blend ratio
+
+# -------------------------------------------------------------------------
+# BENCHMARK & PERFORMANCE PARAMETERS
+# -------------------------------------------------------------------------
+drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negative score to prioritize safety)
+

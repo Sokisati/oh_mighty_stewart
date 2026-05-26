@@ -4,6 +4,8 @@ function fitness = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, ma
 
     if nargin < 9 || isempty(ctrl_lambda), ctrl_lambda = 0; end
 
+    config = load_config();
+
     Kp = K_pid(1);
     Ki = K_pid(2);
     Kd = K_pid(3);
@@ -36,7 +38,7 @@ function fitness = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, ma
         
         if result.fell_off
             has_drop = true;
-            scores(s) = 0;
+            scores(s) = config.drop_penalty;
             continue;
         end
         

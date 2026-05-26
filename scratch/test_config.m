@@ -49,4 +49,6 @@ fprintf('noise_spike_mag   = %.6f m (Expected: 0.000100)\n', noise_spike_mag);
 fprintf('classic_c_ratio   = %.2f (Expected: 0.60)\n', classic_c_ratio);
 fprintf('classic_r_ratio   = %.2f (Expected: 1.00)\n', classic_r_ratio);
 
+fprintf('drop_penalty      = %.1f (Expected: -20.0)\n', drop_penalty);
+
 fprintf('=== Verification complete! ===\n');

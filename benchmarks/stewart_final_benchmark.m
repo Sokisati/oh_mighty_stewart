@@ -127,13 +127,13 @@ for sc = 1:num_wind_modes
     
     for v = 1:num_val
         if F1(v) == 1
-            scores1(v) = 0;
+            scores1(v) = config.drop_penalty;
         else
             scores1(v) = 100 * sum(w .* max(0, 2 - (R1(v, :) ./ a1_ref)));
         end
         
         if F2(v) == 1
-            scores2(v) = 0;
+            scores2(v) = config.drop_penalty;
         else
             scores2(v) = 100 * sum(w .* max(0, 2 - (R2(v, :) ./ a1_ref)));
         end
