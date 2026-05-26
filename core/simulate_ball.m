@@ -1,0 +1,247 @@
+function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
+% SIMULATE_BALL  Unified headless ball-on-plate physics engine.
+%
+%   result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
+%
+%   This is the SINGLE SOURCE OF TRUTH for ball dynamics and PID control.
+%   All simulation modes (PID, GS, GA fitness, Benchmark) call this function.
+%
+%   Inputs:
+%     Kp, Ki, Kd       - PID gains (base values)
+%     params           - struct with fields:
+%       .dt            - time step [s]
+%       .T_sim         - simulation duration [s]
+%       .g_acc         - gravity [m/s^2]
+%       .c_roll        - rolling damping [1/s]
+%       .r_limit       - plate boundary radius [m]
+%       .max_tilt      - max platform tilt [rad]
+%       .ball_x0       - initial ball x [m] (default 0.05)
+%       .ball_y0       - initial ball y [m] (default 0.03)
+%       .delay_steps   - actuator loop delay in steps (default 3 = 60ms at dt=0.02)
+%                        Models: sensor read + compute + servo physical response.
+%                        Set to 0 to disable delay (ideal simulation).
+%       .gs_alpha_p    - Gain Scheduling alpha for Kp (0 = off)
+%       .gs_alpha_i    - Gain Scheduling alpha for Ki (0 = off)
+%       .gs_alpha_d    - Gain Scheduling alpha for Kd (0 = off)
+%       .gs_beta_i     - Smart Dynamic Suppression beta for Ki (default 15)
+%     disturb_table    - Nx3 [time, vx_kick, vy_kick] or [] for no disturbances
+%     noise_table      - Nx3 [time, noise_x, noise_y] or [] for no noise
+%
+%   Output:
+%     result - struct with fields:
+%       .ball_x, .ball_y       - ball position arrays [m]
+%       .ball_vx, .ball_vy     - ball velocity arrays [m/s]
+%       .pitch_cmd, .roll_cmd  - PID command arrays [rad] (what PID computed)
+%       .pitch_act, .roll_act  - actual applied tilt arrays [rad] (delayed)
+%       .Kp_log, .Ki_log, .Kd_log - gain log arrays
+%       .t_vec                 - time vector [s]
+%       .itae                  - ITAE fitness score
+%       .fell_off              - true if ball left the plate
+%       .fall_time             - time of fall-off [s] or NaN
+
+    % --- Default parameters ---
+    dt       = params.dt;
+    T_sim    = params.T_sim;
+    g_acc    = params.g_acc;
+    c_roll   = params.c_roll;
+    r_limit  = params.r_limit;
+    max_tilt = params.max_tilt;
+
+    if isfield(params, 'ball_x0'), ball_x0 = params.ball_x0; else, ball_x0 = 0.05; end
+    if isfield(params, 'ball_y0'), ball_y0 = params.ball_y0; else, ball_y0 = 0.03; end
+
+    % Actuator delay (circular buffer size)
+    % Default: 3 steps = 60 ms at dt=0.02s
+    % This models: sensor read latency + compute time + servo physical response
+    if isfield(params, 'delay_steps'), delay_steps = params.delay_steps; else, delay_steps = 3; end
+    delay_steps = max(0, round(delay_steps));  % enforce non-negative integer
+
+    % Gain Scheduling parameters (0 = disabled = plain PID)
+    if isfield(params, 'gs_alpha_p'), gs_alpha_p = params.gs_alpha_p; else, gs_alpha_p = 0; end
+    if isfield(params, 'gs_alpha_i'), gs_alpha_i = params.gs_alpha_i; else, gs_alpha_i = 0; end
+    if isfield(params, 'gs_alpha_d'), gs_alpha_d = params.gs_alpha_d; else, gs_alpha_d = 0; end
+    if isfield(params, 'gs_beta_i'),  gs_beta_i  = params.gs_beta_i;  else, gs_beta_i  = 15.0; end
+
+    gs_active = (gs_alpha_p > 0 || gs_alpha_d > 0 || gs_alpha_i > 0);
+
+    % Handle empty disturbance/noise inputs
+    if nargin < 5 || isempty(disturb_table), disturb_table = zeros(0, 3); end
+    has_noise = (nargin >= 6 && ~isempty(noise_table));
+
+    % --- State arrays ---
+    N = round(T_sim / dt);
+    t_vec = linspace(0, T_sim, N)';
+
+    ball_x  = zeros(N, 1);
+    ball_y  = zeros(N, 1);
+    ball_vx = zeros(N, 1);
+    ball_vy = zeros(N, 1);
+    pitch_log = zeros(N, 1);  % what PID computed (command)
+    roll_log  = zeros(N, 1);
+    pitch_act = zeros(N, 1);  % what was actually applied (delayed)
+    roll_act  = zeros(N, 1);
+    Kp_log = zeros(N, 1);
+    Ki_log = zeros(N, 1);
+    Kd_log = zeros(N, 1);
+
+    ball_x(1) = ball_x0;
+    ball_y(1) = ball_y0;
+
+    % --- Actuator delay circular buffer ---
+    % Stores the last (delay_steps+1) commands. When delay_steps=0 the
+    % buffer has size 1 and the command is applied immediately.
+    buf_size  = delay_steps + 1;
+    buf_pitch = zeros(buf_size, 1);
+    buf_roll  = zeros(buf_size, 1);
+    buf_head  = 1;  % next write position (1-indexed, wraps around)
+
+    % PID state
+    int_ex = 0;  int_ey = 0;
+    if has_noise
+        prev_ex = -(ball_x(1) + noise_table(1, 2));
+        prev_ey =   ball_y(1) + noise_table(1, 3);
+    else
+        prev_ex = -ball_x(1);
+        prev_ey =  ball_y(1);
+    end
+
+    % LPF state for Smart Dynamic Suppression
+    err_dot_filtered = 0;
+
+    % Fitness accumulators
+    itae = 0;
+    fell_off = false;
+    fall_time = NaN;
+
+    % --- Physics loop ---
+    for i = 1:N-1
+        % 1. Inject disturbances (wind kicks)
+        for d = 1:size(disturb_table, 1)
+            if abs(t_vec(i) - disturb_table(d,1)) < dt/2
+                ball_vx(i) = ball_vx(i) + disturb_table(d,2);
+                ball_vy(i) = ball_vy(i) + disturb_table(d,3);
+            end
+        end
+
+        % 2. Sensor reading (with or without noise)
+        if has_noise
+            measured_x = ball_x(i) + noise_table(i, 2);
+            measured_y = ball_y(i) + noise_table(i, 3);
+        else
+            measured_x = ball_x(i);
+            measured_y = ball_y(i);
+        end
+
+        % 3. Error signals
+        ex = -measured_x;
+        ey =  measured_y;
+
+        % 4. Integral with anti-windup clamp
+        int_ex = int_ex + ex * dt;
+        int_ey = int_ey + ey * dt;
+        int_ex = max(-0.5, min(0.5, int_ex));
+        int_ey = max(-0.5, min(0.5, int_ey));
+
+        % 5. Derivative
+        dex = (ex - prev_ex) / dt;
+        dey = (ey - prev_ey) / dt;
+        prev_ex = ex;
+        prev_ey = ey;
+
+        % 6. Gain computation (Plain PID or Gain Scheduling)
+        if gs_active
+            err_mag = sqrt(ex^2 + ey^2);
+            err_dot_mag = sqrt(dex^2 + dey^2);
+
+            % First-order Low-Pass Filter (tau ~ 0.1s)
+            LPF_gamma = 0.1;
+            if i == 1
+                err_dot_filtered = err_dot_mag;
+            else
+                err_dot_filtered = (1 - LPF_gamma) * err_dot_filtered + LPF_gamma * err_dot_mag;
+            end
+
+            Kp_eff = Kp + gs_alpha_p * err_mag;
+            Kd_eff = Kd + gs_alpha_d * err_mag;
+
+            % Smart Dynamic Suppression for Ki
+            % Persistence signal: integral error magnitude (high for steady wind)
+            int_err_mag = sqrt(int_ex^2 + int_ey^2);
+            % Chaos signal: filtered error derivative (high for chaotic wind)
+            Ki_eff = max(0.1, Ki + gs_alpha_i * int_err_mag - gs_beta_i * err_dot_filtered);
+        else
+            Kp_eff = Kp;
+            Ki_eff = Ki;
+            Kd_eff = Kd;
+        end
+
+        Kp_log(i) = Kp_eff;
+        Ki_log(i) = Ki_eff;
+        Kd_log(i) = Kd_eff;
+
+        % 7. PID output (this is the COMMANDED value at time i)
+        pitch_cmd_i = Kp_eff*ex + Ki_eff*int_ex + Kd_eff*dex;
+        roll_cmd_i  = Kp_eff*ey + Ki_eff*int_ey + Kd_eff*dey;
+
+        pitch_cmd_i = max(-max_tilt, min(max_tilt, pitch_cmd_i));
+        roll_cmd_i  = max(-max_tilt, min(max_tilt, roll_cmd_i));
+
+        pitch_log(i) = pitch_cmd_i;
+        roll_log(i)  = roll_cmd_i;
+
+        % 8. Actuator delay: write new command into circular buffer,
+        %    read the command that was issued delay_steps ago.
+        buf_pitch(buf_head) = pitch_cmd_i;
+        buf_roll(buf_head)  = roll_cmd_i;
+
+        % Read head points to the oldest entry = what actually reaches the servo now
+        read_head = mod(buf_head, buf_size) + 1;
+        pitch_applied = buf_pitch(read_head);
+        roll_applied  = buf_roll(read_head);
+
+        % Advance write head
+        buf_head = read_head;
+
+        pitch_act(i) = pitch_applied;
+        roll_act(i)  = roll_applied;
+
+        % 9. ITAE fitness + fall-off check (based on real ball position)
+        dist_from_center = sqrt(ball_x(i)^2 + ball_y(i)^2);
+        if dist_from_center > r_limit
+            itae = itae + 10000 * (N - i);  % death penalty
+            fell_off = true;
+            fall_time = t_vec(i);
+            break;
+        end
+        t_i = i * dt;
+        itae = itae + (t_i * dist_from_center * dt);
+
+        % 10. Ball dynamics with DELAYED tilt command (Symplectic Euler)
+        ax = (5/7) * g_acc * sin(pitch_applied) - c_roll * ball_vx(i);
+        ay = -(5/7) * g_acc * sin(roll_applied)  - c_roll * ball_vy(i);
+
+        ball_vx(i+1) = ball_vx(i) + ax * dt;
+        ball_vy(i+1) = ball_vy(i) + ay * dt;
+        ball_x(i+1)  = ball_x(i)  + ball_vx(i+1) * dt;
+        ball_y(i+1)  = ball_y(i)  + ball_vy(i+1) * dt;
+    end
+
+    % --- Pack results ---
+    result.ball_x    = ball_x;
+    result.ball_y    = ball_y;
+    result.ball_vx   = ball_vx;
+    result.ball_vy   = ball_vy;
+    result.pitch_cmd = pitch_log;   % commanded (before delay)
+    result.roll_cmd  = roll_log;
+    result.pitch_act = pitch_act;   % actually applied (after delay)
+    result.roll_act  = roll_act;
+    result.Kp_log    = Kp_log;
+    result.Ki_log    = Ki_log;
+    result.Kd_log    = Kd_log;
+    result.t_vec     = t_vec;
+    result.itae      = itae;
+    result.fell_off  = fell_off;
+    result.fall_time = fall_time;
+    result.N         = N;
+    result.delay_steps = delay_steps;
+end
