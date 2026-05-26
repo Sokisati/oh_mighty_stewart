@@ -41,28 +41,24 @@ else
     fprintf('Active Wind Scenario: %s\n', upper(WIND_TYPE));
 end
 
-% 1. Pre-generate different scenarios (Domain Randomization)
-fprintf('Pre-generating %d random wind and noise scenarios (Seed = %d)...\n', num_scenarios, rng_seed);
-rng(rng_seed);
-seeds = randi([1, 10000], 1, num_scenarios);
-
-disturbances = cell(num_scenarios, 1);
-noises = cell(num_scenarios, 1);
-
-for s = 1:num_scenarios
-    disturbances{s} = generate_disturbances(seeds(s), 30.0);
-    noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
-end
-fprintf('Scenarios generated. Starting evolution...\n\n');
-
-% 2. GA Parameters
+% 1. GA Parameters & Dynamic Bounds
 POP_SIZE = pop_size;         
 GENERATIONS = generations;      
 MUTATION_IMPACT = 1.0; % Increased from 0.5 to allow larger jumps
 FAILURE_THRESHOLD = 5000; % Threshold to filter out fell_off results
 
-LB = [0,   0,    0];
-UB = [25,  40,   10];  % Increased Kp, Ki, Kd bounds for more aggressive tuning
+if strcmpi(WIND_TYPE, 'combined') && WIND_C_RATIO > 0.5
+    % Chaotic-heavy wind: restrict Ki to avoid integral wind-up/instability
+    % LB: [Kp, Ki, Kd], UB: [Kp, Ki, Kd]
+    UB = [20.0, 2.0,  5.0]; % High Kp capability, low Ki to avoid lag, decent Kd for damping
+    LB = [4.0,  0.1,  0.5];
+    fprintf('[Dynamic Bounds] Chaotic wind detected. Restricting bounds: Ki in [%.1f, %.1f] to prevent integral wind-up.\n', LB(2), UB(2));
+else
+    % Non-chaotic/steady wind: allow high Ki to reject steady offset
+    UB = [25.0, 40.0, 10.0];
+    LB = [0.0,  0.0,  0.0];
+end
+
 
 % 3. Initialize Random Population
 pop = zeros(POP_SIZE, 3);
@@ -95,6 +91,17 @@ end
 max_tilt_rad = 30 * deg2rad;
 
 for gen = 1:GENERATIONS
+    % Domain Randomization: generate NEW scenarios at every generation.
+    % Seed is shifted per generation to maintain reproducibility of the GA run.
+    rng(rng_seed + gen * 100);
+    seeds = randi([1, 100000], 1, num_scenarios);
+    disturbances = cell(num_scenarios, 1);
+    noises = cell(num_scenarios, 1);
+    for s = 1:num_scenarios
+        disturbances{s} = generate_disturbances(seeds(s), 30.0);
+        noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
+    end
+
     % A) Evaluate Fitness across all scenarios
     parfor i = 1:POP_SIZE
         [fitness_scores(i), robust_scores(i), num_drops(i)] = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
