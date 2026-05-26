@@ -19,20 +19,21 @@ fprintf('Run mode:\n');
 fprintf('  [1] PID Ball Balancing      (closed-loop, classic PID)\n');
 fprintf('  [2] Manual Control          (arrows + WASD, game mode)\n');
 fprintf('  [3] Robust GA PID Tuner     (Train 1 PID across 100 Scenarios)\n');
-fprintf('  [4] Gain Scheduling Control (Error-Driven Non-linear PID)\n');
-fprintf('  [5] The Ultimate Benchmark  (Compare 4 Methods on 100 Seeds)\n');
-fprintf('  [6] Wind Analyzer           (Realistic vs Chaotic Wind)\n\n');
+fprintf('  [4] The Ultimate Benchmark  (Compare Methods on 100 Seeds)\n');
+fprintf('  [5] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
+fprintf('  [6] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n\n');
 
 choice = input('Enter choice (1-6, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
-% If not running the visual analyzer, ask which wind type to use
-if ~strcmp(choice, '6')
+% If not running the wind analyzer or Z-N tuner, ask which wind type to use
+if ~strcmp(choice, '5') && ~strcmp(choice, '6')
     fprintf('\nSelect Wind Type for Simulation:\n');
     fprintf('  [1] Chaotic Wind   (Swirling, random directions)\n');
     fprintf('  [2] Realistic Wind (Consistent main direction)\n');
     fprintf('  [3] Combined Wind  (Blend of Chaotic and Realistic)\n');
-    w_choice = input('Enter choice (1-3, Enter = 1): ', 's');
+    fprintf('  [4] Classic Scenario (0.25 Chaotic + 0.9 Realistic)\n');
+    w_choice = input('Enter choice (1-4, Enter = 1): ', 's');
     
     global WIND_TYPE;
     global WIND_C_RATIO;
@@ -46,6 +47,10 @@ if ~strcmp(choice, '6')
         if isempty(c_str), WIND_C_RATIO = 0.3; else, WIND_C_RATIO = str2double(c_str); end
         r_str = input('Enter realistic coefficient (0.0 to 1.0, default 1.0): ', 's');
         if isempty(r_str), WIND_R_RATIO = 1.0; else, WIND_R_RATIO = str2double(r_str); end
+    elseif strcmp(w_choice, '4')
+        WIND_TYPE = 'combined';
+        WIND_C_RATIO = 0.25;
+        WIND_R_RATIO = 0.9;
     else
         WIND_TYPE = 'chaotic';
     end
@@ -67,16 +72,16 @@ switch choice
         run('ga/stewart_ga_multi_seed.m');
         
     case '4'
-        fprintf('[->] Launching Gain Scheduling Control...\n\n');
-        run('stewart_gs_sim.m');
-        
-    case '5'
         fprintf('[->] Launching The Ultimate Benchmark...\n\n');
         run('stewart_final_benchmark.m');
         
-    case '6'
+    case '5'
         fprintf('[->] Launching Wind Analyzer...\n\n');
-        run('stewart_wind_analyzer.m');
+        run('benchmarks/stewart_wind_analyzer.m');
+        
+    case '6'
+        fprintf('[->] Launching Ziegler-Nichols Auto-Tuner...\n\n');
+        run('tuning/stewart_zn_tuner.m');
 
     otherwise
         fprintf('[!] Invalid choice. Defaulting to PID ball balancing simulation.\n');

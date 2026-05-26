@@ -13,10 +13,10 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %                [time(s), kick_vx(m/s), kick_vy(m/s)]
 
     if nargin < 3 || isempty(params)
-        params.min_interval = 0.8;   % [s]
-        params.max_interval = 1.5;   % [s]
-        params.min_force    = 0.3;  % [m/s]
-        params.max_force    = 0.6;  % [m/s]
+        params.min_interval = 1;   % [s]
+        params.max_interval = 2;   % [s]
+        params.min_force    = 0.4;  % [m/s]
+        params.max_force    = 0.8;  % [m/s]
         params.angle_drift_speed = 25; % [deg/s] - how fast the dominant angle rotates
         params.angle_spread = 30;      % [deg]   - std dev of random scatter around dominant angle
         params.anti_cancel_deg = 45;   % [deg]   - minimum angle difference from exactly opposite

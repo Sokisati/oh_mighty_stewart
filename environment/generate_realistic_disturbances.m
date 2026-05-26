@@ -16,8 +16,8 @@ function F_table = generate_realistic_disturbances(seed, T_sim, params)
     if nargin < 3 || isempty(params)
         params.min_interval = 0.3;   % [s] (slightly more frequent than chaotic)
         params.max_interval = 0.4;   % [s]
-        params.min_force    = 0.1;  % [m/s]
-        params.max_force    = 0.2;  % [m/s]
+        params.min_force    = 0.15;  % [m/s]
+        params.max_force    = 0.25;  % [m/s]
         params.angle_spread = 10;    % [deg] - std dev of random scatter around base angle
     end
 

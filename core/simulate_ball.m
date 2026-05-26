@@ -56,7 +56,8 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     % Actuator delay in seconds
     % Default: 20 ms (0.020 s)
     % This models: sensor read latency + compute time + servo physical response
-    if isfield(params, 'delay_sec'), delay_sec = params.delay_sec; else, delay_sec = 0.020; end
+    % User requested 40ms delay (0.040)
+    if isfield(params, 'delay_sec'), delay_sec = params.delay_sec; else, delay_sec = 0.040; end
     
     % Calculate fractional delay steps based on dt
     delay_steps = max(0, delay_sec / dt);
@@ -64,16 +65,10 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     frac_delay  = delay_steps - int_delay;
     
     % Slew rate (maximum platform angular velocity in rad/s)
-    % Default: 350 degrees/sec (Realistic hobby servo speed)
-    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 350 * (pi/180); end
+    % Default: 250 degrees/sec (Realistic hobby servo speed)
+    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 250 * (pi/180); end
 
-    % Gain Scheduling parameters (0 = disabled = plain PID)
-    if isfield(params, 'gs_alpha_p'), gs_alpha_p = params.gs_alpha_p; else, gs_alpha_p = 0; end
-    if isfield(params, 'gs_alpha_i'), gs_alpha_i = params.gs_alpha_i; else, gs_alpha_i = 0; end
-    if isfield(params, 'gs_alpha_d'), gs_alpha_d = params.gs_alpha_d; else, gs_alpha_d = 0; end
-    if isfield(params, 'gs_beta_i'),  gs_beta_i  = params.gs_beta_i;  else, gs_beta_i  = 15.0; end
-
-    gs_active = (gs_alpha_p > 0 || gs_alpha_d > 0 || gs_alpha_i > 0);
+    % Gain Scheduling parameters removed (all GS logic deleted)
 
     % Handle empty disturbance/noise inputs
     if nargin < 5 || isempty(disturb_table), disturb_table = zeros(0, 3); end
@@ -127,6 +122,11 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     fell_off = false;
     fall_time = NaN;
 
+    % --- Fixed PID Gains ---
+    Kp_eff = Kp;
+    Ki_eff = Ki;
+    Kd_eff = Kd;
+
     % --- Discrete disturbances (velocity kicks) ---
     has_kick = (size(disturb_table, 1) > 0);
     next_kick = 1;
@@ -159,39 +159,6 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         prev_ex = ex;
         prev_ey = ey;
 
-        % 5. Gain computation (Plain PID or Gain Scheduling)
-        if gs_active
-            % === PREDICTIVE GAIN SCHEDULING (Smith Predictor style) ===
-            % Schedule gains on PREDICTED future error, not current error.
-            delay_time = delay_steps * dt;
-            ex_pred = ex + delay_time * dex;
-            ey_pred = ey + delay_time * dey;
-            err_pred_mag = max(0, sqrt(ex_pred^2 + ey_pred^2));
-
-            Kp_eff = Kp + gs_alpha_p * err_pred_mag;
-            Kd_eff = Kd + gs_alpha_d * err_pred_mag;
-
-            % First-order Low-Pass Filter for error derivative
-            err_dot_mag = sqrt(dex^2 + dey^2);
-            LPF_gamma = 0.1;
-            if i == 1
-                err_dot_filtered = err_dot_mag;
-            else
-                err_dot_filtered = (1 - LPF_gamma) * err_dot_filtered + LPF_gamma * err_dot_mag;
-            end
-
-            % Ki_eff computation uses previous integral state
-            int_err_mag = sqrt(int_ex^2 + int_ey^2);
-            Ki_eff = max(0.1, Ki + gs_alpha_i * int_err_mag - gs_beta_i * err_dot_filtered);
-        else
-            Kp_eff = Kp;
-            Ki_eff = Ki;
-            Kd_eff = Kd;
-        end
-
-        Kp_log(i) = Kp_eff;
-        Ki_log(i) = Ki_eff;
-        Kd_log(i) = Kd_eff;
 
         % 6. Integral with Scale-Aware Anti-Windup
         int_ex = int_ex + ex * dt;
@@ -249,6 +216,11 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
             itae = itae + 10000 * (N - i);  % death penalty
             fell_off = true;
             fall_time = t_vec(i);
+            Kp_log(i:end) = Kp_eff;
+            Ki_log(i:end) = Ki_eff;
+            Kd_log(i:end) = Kd_eff;
+            pitch_log(i:end) = pitch_cmd_i;
+            roll_log(i:end) = roll_cmd_i;
             break;
         end
         t_i = i * dt;

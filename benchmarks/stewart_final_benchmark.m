@@ -22,8 +22,8 @@ run('stewart_setup.m');
 fprintf('[PHASE 1] Training Robust Genetic Algorithm...\n');
 fprintf('          (Using the unified stewart_ga_multi_seed function)\n');
 
-% Train robust GA over 30 scenarios, population of 30, for 15 generations, without live plotting
-[GA_Kp, GA_Ki, GA_Kd] = stewart_ga_multi_seed(30, 30, 15, false);
+% Train robust GA over 30 scenarios, population of 30, for 50 generations, without live plotting
+[GA_Kp, GA_Ki, GA_Kd] = stewart_ga_multi_seed(30, 30, 50, false, 42);
 
 fprintf('\n[PHASE 1 COMPLETE]\n');
 fprintf('  -> Robust Tuned GA_Kp: %.3f\n', GA_Kp);
@@ -38,88 +38,84 @@ validation_seeds = randi([20001, 30000], 1, num_val);
 
 fprintf('[PHASE 2] Validating 4 algorithms on %d unseen wind seeds...\n', num_val);
 
-% Gain Scheduling and Base parameters (Read directly from source files!)
+% Base PID parameters (Read directly from source files!)
 extract_param = @(file, param) str2double(regexp(fileread(file), sprintf('%s\\s*=\\s*([0-9\\.]+)', param), 'tokens', 'once'));
 
 base_Kp = extract_param('simulations/stewart_pid_sim.m', 'Kp');
 base_Ki = extract_param('simulations/stewart_pid_sim.m', 'Ki');
 base_Kd = extract_param('simulations/stewart_pid_sim.m', 'Kd');
 
-gs_Kp = extract_param('simulations/stewart_gs_sim.m', 'Kp_0');
-gs_Ki = extract_param('simulations/stewart_gs_sim.m', 'Ki_0');
-gs_Kd = extract_param('simulations/stewart_gs_sim.m', 'Kd_0');
-
-alpha_p = extract_param('simulations/stewart_gs_sim.m', 'alpha_p');
-alpha_i = extract_param('simulations/stewart_gs_sim.m', 'alpha_i');
-alpha_d = extract_param('simulations/stewart_gs_sim.m', 'alpha_d');
-
-if isnan(alpha_i), alpha_i = 10.0; end % Fallback just in case
-
 % Storage: [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort]
 R1 = zeros(num_val, 6); % Classic PID
-R2 = zeros(num_val, 6); % Gain Scheduling
-R3 = zeros(num_val, 6); % GA
-R4 = zeros(num_val, 6); % GS + GA
+R2 = zeros(num_val, 6); % Robust GA PID
+
+% Süsme/Düşme Kaydı: 1 = düştü, 0 = düşmedi
+F1 = zeros(num_val, 1);
+F2 = zeros(num_val, 1);
 
 for v = 1:num_val
     vs = validation_seeds(v);
     fprintf('  Seed %d/%d (seed=%d)...\n', v, num_val, vs);
     
     % Method 1: Classic PID (Uses params exactly from stewart_pid_sim.m)
-    R1(v,:) = run_headless_sim(base_Kp, base_Ki, base_Kd, 0, 0, 0, vs, dt, g_acc, c_roll, r_limit);
+    [res1, fell1] = run_headless_sim(base_Kp, base_Ki, base_Kd, vs, dt, g_acc, c_roll, r_limit);
+    R1(v,:) = res1; F1(v) = fell1;
     
-    % Method 2: Gain Scheduling (Uses base and alphas exactly from stewart_gs_sim.m)
-    R2(v,:) = run_headless_sim(gs_Kp, gs_Ki, gs_Kd, alpha_p, alpha_i, alpha_d, vs, dt, g_acc, c_roll, r_limit);
-    
-    % Method 3: Pure GA (GA_Kp, GA_Ki, GA_Kd, no scheduling)
-    R3(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, 0, 0, 0, vs, dt, g_acc, c_roll, r_limit);
-    
-    % Method 4: GS + GA Hybrid (GA base + scheduling alphas from stewart_gs_sim.m)
-    R4(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, alpha_p, alpha_i, alpha_d, vs, dt, g_acc, c_roll, r_limit);
+    % Method 2: Robust GA PID (GA_Kp, GA_Ki, GA_Kd)
+    [res2, fell2] = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, vs, dt, g_acc, c_roll, r_limit);
+    R2(v,:) = res2; F2(v) = fell2;
 end
 
 %% =========================================================
 %  PHASE 4: AGGREGATION AND REPORTING
 %  =========================================================
-safe_avg = @(x) mean(x(~isnan(x)));
+% Düşmeyen (başarılı) koşturmaların ortalama değerlerini hesapla
+if sum(F1 == 0) > 0, a1 = mean(R1(F1 == 0, :), 1); else, a1 = mean(R1, 1); end
+if sum(F2 == 0) > 0, a2 = mean(R2(F2 == 0, :), 1); else, a2 = mean(R2, 1); end
 
-a1 = [safe_avg(R1(:,1)), safe_avg(R1(:,2)), safe_avg(R1(:,3)), safe_avg(R1(:,4)), safe_avg(R1(:,5)), safe_avg(R1(:,6))];
-a2 = [safe_avg(R2(:,1)), safe_avg(R2(:,2)), safe_avg(R2(:,3)), safe_avg(R2(:,4)), safe_avg(R2(:,5)), safe_avg(R2(:,6))];
-a3 = [safe_avg(R3(:,1)), safe_avg(R3(:,2)), safe_avg(R3(:,3)), safe_avg(R3(:,4)), safe_avg(R3(:,5)), safe_avg(R3(:,6))];
-a4 = [safe_avg(R4(:,1)), safe_avg(R4(:,2)), safe_avg(R4(:,3)), safe_avg(R4(:,4)), safe_avg(R4(:,5)), safe_avg(R4(:,6))];
+% Referans olarak Classic PID'nin başarılı koşturmalarının ortalamasını alıyoruz
+idx_success_pid = find(F1 == 0);
+if ~isempty(idx_success_pid)
+    a1_ref = mean(R1(idx_success_pid, :), 1);
+else
+    a1_ref = mean(R1, 1);
+end
 
-% Calculate Total Score (Relative to Classic PID Base = 100)
-% Weights: Rise(5%), Overshoot(10%), Recovery(20%), RMS(30%), ITAE(25%), Effort(10%)
+% Ağırlıklar: Rise(5%), Overshoot/Settling(10%), Recovery(20%), RMS(30%), ITAE(25%), Effort(10%)
 w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10];
-score = @(a) 100 * sum(w .* max(0, 2 - (a ./ a1)));
 
-s1 = score(a1); if a1(5) > 1000000, s1 = 0.0; end
-s2 = score(a2); if a2(5) > 1000000, s2 = 0.0; end
-s3 = score(a3); if a3(5) > 1000000, s3 = 0.0; end
-s4 = score(a4); if a4(5) > 1000000, s4 = 0.0; end
+% Her seed için bireysel puanlama
+scores1 = zeros(num_val, 1);
+scores2 = zeros(num_val, 1);
+
+for v = 1:num_val
+    if F1(v) == 1
+        scores1(v) = 0;
+    else
+        scores1(v) = 100 * sum(w .* max(0, 2 - (R1(v, :) ./ a1_ref)));
+    end
+    
+    if F2(v) == 1
+        scores2(v) = 0;
+    else
+        scores2(v) = 100 * sum(w .* max(0, 2 - (R2(v, :) ./ a1_ref)));
+    end
+end
+
+s1_avg = mean(scores1);
+s2_avg = mean(scores2);
 
 str1 = sprintf('1. Classic PID (%.1f, %.1f, %.1f)', base_Kp, base_Ki, base_Kd);
-if a1(5) > 1000000, str1 = [str1 ' [FAILED]']; end
+str2 = sprintf('2. Robust GA PID (%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
 
-str2 = sprintf('2. Gain Sched. (%.1f, %.1f, %.1f)', gs_Kp, gs_Ki, gs_Kd);
-if a2(5) > 1000000, str2 = [str2 ' [FAILED]']; end
-
-str3 = sprintf('3. Genetic Alg (%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
-if a3(5) > 1000000, str3 = [str3 ' [FAILED]']; end
-
-str4 = sprintf('4. Hybrid GS+GA(%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
-if a4(5) > 1000000, str4 = [str4 ' [FAILED]']; end
-
-fprintf('\n============================================================================================================================================================\n');
-fprintf('                                                   FINAL BENCHMARK RESULTS (Averaged over %d tests)\n', num_val);
-fprintf('============================================================================================================================================================\n');
-fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | TOTAL SCORE\n', 'Method (Kp, Ki, Kd)');
-fprintf('------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
-fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str1, a1(1), a1(2), a1(3), a1(4), a1(5), a1(6), s1);
-fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str2, a2(1), a2(2), a2(3), a2(4), a2(5), a2(6), s2);
-fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str3, a3(1), a3(2), a3(3), a3(4), a3(5), a3(6), s3);
-fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str4, a4(1), a4(2), a4(3), a4(4), a4(5), a4(6), s4);
-fprintf('============================================================================================================================================================\n\n');
+fprintf('\n=========================================================================================================================================================================\n');
+fprintf('                                                               FINAL BENCHMARK RESULTS (Averaged over %d tests)\n', num_val);
+fprintf('=========================================================================================================================================================================\n');
+fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | Drops | TOTAL SCORE\n', 'Method (Kp, Ki, Kd)');
+fprintf('-------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
+fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %5d | %11.1f\n', str1, a1(1), a1(2), a1(3), a1(4), a1(5), a1(6), sum(F1), s1_avg);
+fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %5d | %11.1f\n', str2, a2(1), a2(2), a2(3), a2(4), a2(5), a2(6), sum(F2), s2_avg);
+fprintf('=========================================================================================================================================================================\n\n');
 
 
 %% =========================================================
@@ -127,7 +123,7 @@ fprintf('=======================================================================
 %  Replicates the EXACT physics loop from stewart_pid_sim.m
 %  with NO animation, NO interp1. Impulse kicks only.
 %% =========================================================
-function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_i, alpha_d, seed, dt, g_acc, c_roll, r_limit)
+function [res, fell_off] = run_headless_sim(Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
     % --- Build params struct for simulate_ball ---
     params.dt       = dt;
     params.T_sim    = 30;
@@ -138,20 +134,13 @@ function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_i, alp
     params.ball_x0  = 0.05;
     params.ball_y0  = 0.03;
 
-    % Enable Gain Scheduling if requested
-    if alpha_p > 0 || alpha_d > 0 || alpha_i > 0
-        params.gs_alpha_p = alpha_p;
-        params.gs_alpha_d = alpha_d;
-        params.gs_alpha_i = alpha_i;
-        params.gs_beta_i  = 15.0; % Hardcoded fallback
-    end
-
     % --- Generate disturbances and noise ---
     disturb_table = generate_disturbances(seed, params.T_sim);
     noise_table   = generate_sensor_noise(seed, params.T_sim, dt);
 
     % --- Run unified physics engine ---
     result = simulate_ball(Kp_base, Ki_base, Kd_base, params, disturb_table, noise_table);
+    fell_off = result.fell_off;
 
     % --- Extract arrays from result ---
     ball_x = result.ball_x;
