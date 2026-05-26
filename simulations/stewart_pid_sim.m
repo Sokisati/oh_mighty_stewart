@@ -37,9 +37,9 @@ pos_ref_pid(:, 3) = h0;   % fixed height
 %  Output: tilt angle [rad] per meter of ball displacement
 %  Tune Kp, Ki, Kd here if response is too slow / oscillates.
 %% =========================================================
-Kp = 20;    % proportional gain [rad/m]
-Ki = 3;    % integral gain     [rad/(m*s)]
-Kd = 1;    % derivative gain   [rad*s/m]
+Kp = 10;    % proportional gain [rad/m]
+Ki =3;    % integral gain     [rad/(m*s)]
+Kd = 5;    % derivative gain   [rad*s/m]
 
 max_tilt = 30 * deg2rad;   % physical tilt limit [rad]
 

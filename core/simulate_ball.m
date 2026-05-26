@@ -24,8 +24,11 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
 %       .gs_alpha_i    - Gain Scheduling alpha for Ki (0 = off)
 %       .gs_alpha_d    - Gain Scheduling alpha for Kd (0 = off)
 %       .gs_beta_i     - Smart Dynamic Suppression beta for Ki (default 15)
-%     disturb_table    - Nx3 [time, vx_kick, vy_kick] or [] for no disturbances
-%     noise_table      - Nx3 [time, noise_x, noise_y] or [] for no noise
+%     disturb_table    - Nx3 [t_start, ax_wind, ay_wind]
+%                        Continuous wind acceleration [m/s^2] active from t_start
+%                        until the NEXT row's t_start. Requires Ki to eliminate
+%                        the steady-state position offset this creates.
+%                        Use [] for no wind.
 %
 %   Output:
 %     result - struct with fields:
@@ -51,10 +54,14 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     if isfield(params, 'ball_y0'), ball_y0 = params.ball_y0; else, ball_y0 = 0.03; end
 
     % Actuator delay (circular buffer size)
-    % Default: 3 steps = 60 ms at dt=0.02s
+    % Default: 1 steps = 20 ms at dt=0.02s
     % This models: sensor read latency + compute time + servo physical response
-    if isfield(params, 'delay_steps'), delay_steps = params.delay_steps; else, delay_steps = 3; end
+    if isfield(params, 'delay_steps'), delay_steps = params.delay_steps; else, delay_steps = 1; end
     delay_steps = max(0, round(delay_steps));  % enforce non-negative integer
+    
+    % Slew rate (maximum platform angular velocity in rad/s)
+    % Default: 60 degrees/sec = ~1.047 rad/s
+    if isfield(params, 'slew_rate'), slew_rate = params.slew_rate; else, slew_rate = 60 * (pi/180); end
 
     % Gain Scheduling parameters (0 = disabled = plain PID)
     if isfield(params, 'gs_alpha_p'), gs_alpha_p = params.gs_alpha_p; else, gs_alpha_p = 0; end
@@ -95,6 +102,10 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     buf_roll  = zeros(buf_size, 1);
     buf_head  = 1;  % next write position (1-indexed, wraps around)
 
+    % Physical state of the platform (for Slew Rate Limiting)
+    pitch_phys = 0;
+    roll_phys = 0;
+
     % PID state
     int_ex = 0;  int_ey = 0;
     if has_noise
@@ -113,13 +124,23 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
     fell_off = false;
     fall_time = NaN;
 
+    % --- Continuous wind force interpolation ---
+    % disturb_table rows: [t_start, ax_wind, ay_wind]
+    % Active wind = the row whose t_start is <= current time.
+    % Wind persists (constant acceleration) until the next row changes it.
+    has_wind = (size(disturb_table, 1) > 0);
+    ax_wind_cur = 0;
+    ay_wind_cur = 0;
+    wind_row = 0;   % index of currently active wind row
+
     % --- Physics loop ---
     for i = 1:N-1
-        % 1. Inject disturbances (wind kicks)
-        for d = 1:size(disturb_table, 1)
-            if abs(t_vec(i) - disturb_table(d,1)) < dt/2
-                ball_vx(i) = ball_vx(i) + disturb_table(d,2);
-                ball_vy(i) = ball_vy(i) + disturb_table(d,3);
+        % 1. Update active wind segment
+        if has_wind
+            while wind_row < size(disturb_table, 1) && t_vec(i) >= disturb_table(wind_row+1, 1)
+                wind_row = wind_row + 1;
+                ax_wind_cur = disturb_table(wind_row, 2);
+                ay_wind_cur = disturb_table(wind_row, 3);
             end
         end
 
@@ -136,24 +157,26 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         ex = -measured_x;
         ey =  measured_y;
 
-        % 4. Integral with anti-windup clamp
-        int_ex = int_ex + ex * dt;
-        int_ey = int_ey + ey * dt;
-        int_ex = max(-0.5, min(0.5, int_ex));
-        int_ey = max(-0.5, min(0.5, int_ey));
-
-        % 5. Derivative
+        % 4. Derivative
         dex = (ex - prev_ex) / dt;
         dey = (ey - prev_ey) / dt;
         prev_ex = ex;
         prev_ey = ey;
 
-        % 6. Gain computation (Plain PID or Gain Scheduling)
+        % 5. Gain computation (Plain PID or Gain Scheduling)
         if gs_active
-            err_mag = sqrt(ex^2 + ey^2);
-            err_dot_mag = sqrt(dex^2 + dey^2);
+            % === PREDICTIVE GAIN SCHEDULING (Smith Predictor style) ===
+            % Schedule gains on PREDICTED future error, not current error.
+            delay_time = delay_steps * dt;
+            ex_pred = ex + delay_time * dex;
+            ey_pred = ey + delay_time * dey;
+            err_pred_mag = max(0, sqrt(ex_pred^2 + ey_pred^2));
 
-            % First-order Low-Pass Filter (tau ~ 0.1s)
+            Kp_eff = Kp + gs_alpha_p * err_pred_mag;
+            Kd_eff = Kd + gs_alpha_d * err_pred_mag;
+
+            % First-order Low-Pass Filter for error derivative
+            err_dot_mag = sqrt(dex^2 + dey^2);
             LPF_gamma = 0.1;
             if i == 1
                 err_dot_filtered = err_dot_mag;
@@ -161,13 +184,8 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
                 err_dot_filtered = (1 - LPF_gamma) * err_dot_filtered + LPF_gamma * err_dot_mag;
             end
 
-            Kp_eff = Kp + gs_alpha_p * err_mag;
-            Kd_eff = Kd + gs_alpha_d * err_mag;
-
-            % Smart Dynamic Suppression for Ki
-            % Persistence signal: integral error magnitude (high for steady wind)
+            % Ki_eff computation uses previous integral state
             int_err_mag = sqrt(int_ex^2 + int_ey^2);
-            % Chaos signal: filtered error derivative (high for chaotic wind)
             Ki_eff = max(0.1, Ki + gs_alpha_i * int_err_mag - gs_beta_i * err_dot_filtered);
         else
             Kp_eff = Kp;
@@ -179,6 +197,15 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         Ki_log(i) = Ki_eff;
         Kd_log(i) = Kd_eff;
 
+        % 6. Integral with Scale-Aware Anti-Windup
+        int_ex = int_ex + ex * dt;
+        int_ey = int_ey + ey * dt;
+        
+        % Scale-Aware Anti-Windup: Integral should not command more than 30% of max_tilt
+        int_limit = (max_tilt * 0.3) / max(0.01, Ki_eff);
+        int_ex = max(-int_limit, min(int_limit, int_ex));
+        int_ey = max(-int_limit, min(int_limit, int_ey));
+
         % 7. PID output (this is the COMMANDED value at time i)
         pitch_cmd_i = Kp_eff*ex + Ki_eff*int_ex + Kd_eff*dex;
         roll_cmd_i  = Kp_eff*ey + Ki_eff*int_ey + Kd_eff*dey;
@@ -189,18 +216,32 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         pitch_log(i) = pitch_cmd_i;
         roll_log(i)  = roll_cmd_i;
 
-        % 8. Actuator delay: write new command into circular buffer,
-        %    read the command that was issued delay_steps ago.
+        % 8. Actuator delay & Slew Rate Limiting
+        % Write new command into circular buffer
         buf_pitch(buf_head) = pitch_cmd_i;
         buf_roll(buf_head)  = roll_cmd_i;
 
-        % Read head points to the oldest entry = what actually reaches the servo now
+        % Read head points to the oldest entry = what reaches the servo now
         read_head = mod(buf_head, buf_size) + 1;
-        pitch_applied = buf_pitch(read_head);
-        roll_applied  = buf_roll(read_head);
+        pitch_target = buf_pitch(read_head);
+        roll_target  = buf_roll(read_head);
 
         % Advance write head
         buf_head = read_head;
+
+        % Slew Rate Limiting (Motor velocity limit)
+        max_step = slew_rate * dt;
+        
+        pitch_diff = pitch_target - pitch_phys;
+        pitch_step = max(-max_step, min(max_step, pitch_diff));
+        pitch_phys = pitch_phys + pitch_step;
+        
+        roll_diff = roll_target - roll_phys;
+        roll_step = max(-max_step, min(max_step, roll_diff));
+        roll_phys = roll_phys + roll_step;
+
+        pitch_applied = pitch_phys;
+        roll_applied  = roll_phys;
 
         pitch_act(i) = pitch_applied;
         roll_act(i)  = roll_applied;
@@ -216,9 +257,9 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         t_i = i * dt;
         itae = itae + (t_i * dist_from_center * dt);
 
-        % 10. Ball dynamics with DELAYED tilt command (Symplectic Euler)
-        ax = (5/7) * g_acc * sin(pitch_applied) - c_roll * ball_vx(i);
-        ay = -(5/7) * g_acc * sin(roll_applied)  - c_roll * ball_vy(i);
+        % 10. Ball dynamics with DELAYED tilt + continuous wind force (Symplectic Euler)
+        ax = (5/7) * g_acc * sin(pitch_applied) - c_roll * ball_vx(i) + ax_wind_cur;
+        ay = -(5/7) * g_acc * sin(roll_applied)  - c_roll * ball_vy(i) + ay_wind_cur;
 
         ball_vx(i+1) = ball_vx(i) + ax * dt;
         ball_vy(i+1) = ball_vy(i) + ay * dt;

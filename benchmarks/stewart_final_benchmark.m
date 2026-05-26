@@ -38,13 +38,24 @@ validation_seeds = randi([20001, 30000], 1, num_val);
 
 fprintf('[PHASE 2] Validating 4 algorithms on %d unseen wind seeds...\n', num_val);
 
-% Gain Scheduling parameters
-% With 60ms delay, Kp_eff = Kp_base + alpha_p * err must stay stable.
-% At max typical err=5cm, alpha_p=40 gives Kp_eff=10+40*0.05=12 (safe margin)
-alpha_p = 40.0;
-alpha_d = 30.0;
+% Gain Scheduling and Base parameters (Read directly from source files!)
+extract_param = @(file, param) str2double(regexp(fileread(file), sprintf('%s\\s*=\\s*([0-9\\.]+)', param), 'tokens', 'once'));
 
-% Storage: [rise_time, overshoot, avg_recovery, rms_err, itae, ctrl_effort]
+base_Kp = extract_param('simulations/stewart_pid_sim.m', 'Kp');
+base_Ki = extract_param('simulations/stewart_pid_sim.m', 'Ki');
+base_Kd = extract_param('simulations/stewart_pid_sim.m', 'Kd');
+
+gs_Kp = extract_param('simulations/stewart_gs_sim.m', 'Kp_0');
+gs_Ki = extract_param('simulations/stewart_gs_sim.m', 'Ki_0');
+gs_Kd = extract_param('simulations/stewart_gs_sim.m', 'Kd_0');
+
+alpha_p = extract_param('simulations/stewart_gs_sim.m', 'alpha_p');
+alpha_i = extract_param('simulations/stewart_gs_sim.m', 'alpha_i');
+alpha_d = extract_param('simulations/stewart_gs_sim.m', 'alpha_d');
+
+if isnan(alpha_i), alpha_i = 10.0; end % Fallback just in case
+
+% Storage: [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort]
 R1 = zeros(num_val, 6); % Classic PID
 R2 = zeros(num_val, 6); % Gain Scheduling
 R3 = zeros(num_val, 6); % GA
@@ -54,17 +65,17 @@ for v = 1:num_val
     vs = validation_seeds(v);
     fprintf('  Seed %d/%d (seed=%d)...\n', v, num_val, vs);
     
-    % Method 1: Classic PID (delay-stable: Kp=10, Ki=0.5, Kd=2.0)
-    R1(v,:) = run_headless_sim(10, 0.5, 2.0, 0, 0, vs, dt, g_acc, c_roll, r_limit);
+    % Method 1: Classic PID (Uses params exactly from stewart_pid_sim.m)
+    R1(v,:) = run_headless_sim(base_Kp, base_Ki, base_Kd, 0, 0, 0, vs, dt, g_acc, c_roll, r_limit);
     
-    % Method 2: Gain Scheduling (same base + adaptive GS)
-    R2(v,:) = run_headless_sim(10, 0.5, 2.0, alpha_p, alpha_d, vs, dt, g_acc, c_roll, r_limit);
+    % Method 2: Gain Scheduling (Uses base and alphas exactly from stewart_gs_sim.m)
+    R2(v,:) = run_headless_sim(gs_Kp, gs_Ki, gs_Kd, alpha_p, alpha_i, alpha_d, vs, dt, g_acc, c_roll, r_limit);
     
     % Method 3: Pure GA (GA_Kp, GA_Ki, GA_Kd, no scheduling)
-    R3(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, 0, 0, vs, dt, g_acc, c_roll, r_limit);
+    R3(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, 0, 0, 0, vs, dt, g_acc, c_roll, r_limit);
     
-    % Method 4: GS + GA Hybrid (GA base + scheduling)
-    R4(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, alpha_p, alpha_d, vs, dt, g_acc, c_roll, r_limit);
+    % Method 4: GS + GA Hybrid (GA base + scheduling alphas from stewart_gs_sim.m)
+    R4(v,:) = run_headless_sim(GA_Kp, GA_Ki, GA_Kd, alpha_p, alpha_i, alpha_d, vs, dt, g_acc, c_roll, r_limit);
 end
 
 %% =========================================================
@@ -87,16 +98,15 @@ s2 = score(a2);
 s3 = score(a3);
 s4 = score(a4);
 
-base_Kp = 10.0; base_Ki = 0.5; base_Kd = 2.0;
 str1 = sprintf('1. Classic PID (%.1f, %.1f, %.1f)', base_Kp, base_Ki, base_Kd);
-str2 = sprintf('2. Gain Sched. (%.1f, %.1f, %.1f)', base_Kp, base_Ki, base_Kd);
+str2 = sprintf('2. Gain Sched. (%.1f, %.1f, %.1f)', gs_Kp, gs_Ki, gs_Kd);
 str3 = sprintf('3. Genetic Alg (%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
 str4 = sprintf('4. Hybrid GS+GA(%.1f, %.1f, %.1f)', GA_Kp, GA_Ki, GA_Kd);
 
 fprintf('\n============================================================================================================================================================\n');
 fprintf('                                                   FINAL BENCHMARK RESULTS (Averaged over %d tests)\n', num_val);
 fprintf('============================================================================================================================================================\n');
-fprintf(' %-38s | Rise Time (s) | Overshoot (%%) | Recovery (s) | RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | TOTAL SCORE\n', 'Method (Kp, Ki, Kd)');
+fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | TOTAL SCORE\n', 'Method (Kp, Ki, Kd)');
 fprintf('------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
 fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str1, a1(1), a1(2), a1(3), a1(4), a1(5), a1(6), s1);
 fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %11.1f\n', str2, a2(1), a2(2), a2(3), a2(4), a2(5), a2(6), s2);
@@ -110,7 +120,7 @@ fprintf('=======================================================================
 %  Replicates the EXACT physics loop from stewart_pid_sim.m
 %  with NO animation, NO interp1. Impulse kicks only.
 %% =========================================================
-function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_d, seed, dt, g_acc, c_roll, r_limit)
+function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_i, alpha_d, seed, dt, g_acc, c_roll, r_limit)
     % --- Build params struct for simulate_ball ---
     params.dt       = dt;
     params.T_sim    = 30;
@@ -122,11 +132,11 @@ function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_d, see
     params.ball_y0  = 0.03;
 
     % Enable Gain Scheduling if requested
-    if alpha_p > 0 || alpha_d > 0
+    if alpha_p > 0 || alpha_d > 0 || alpha_i > 0
         params.gs_alpha_p = alpha_p;
         params.gs_alpha_d = alpha_d;
-        params.gs_alpha_i = 10.0;
-        params.gs_beta_i  = 15.0;
+        params.gs_alpha_i = alpha_i;
+        params.gs_beta_i  = 15.0; % Hardcoded fallback
     end
 
     % --- Generate disturbances and noise ---
@@ -155,52 +165,25 @@ function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_d, see
         rise_time = params.T_sim; % Penalty for never reaching 10%
     end
 
-    % 2. Overshoot
+    % 2. Settling Time (s)
+    idx_settled = find(dist_cm <= 1.0, 1, 'first');
+    if ~isempty(idx_settled)
+        settling_time = t_vec(idx_settled);
+    else
+        settling_time = params.T_sim;
+    end
+
+    % 3. Wind Rejection RMS (cm)
     if isempty(disturb_table)
-        t_first_dist = t_vec(end);
+        t_wind_start = t_vec(end);
     else
-        t_first_dist = disturb_table(1,1);
+        t_wind_start = disturb_table(1,1);
     end
-    idx_first_dist = find(t_vec >= t_first_dist, 1, 'first');
-
-    if ~isempty(idx_10) && idx_10 < idx_first_dist
-        max_overshoot = max(dist_cm(idx_10:idx_first_dist));
-        overshoot_pct = (max_overshoot / d0) * 100;
-    else
-        % System never settled before disturbance, overshoot is effectively max error
-        overshoot_pct = (max(dist_cm(1:idx_first_dist)) / d0) * 100;
+    idx_wind_eval = find(t_vec >= (t_wind_start + 1.0), 1, 'first');
+    if isempty(idx_wind_eval)
+        idx_wind_eval = 1;
     end
-
-    % 3. Recovery Time
-    rec_thresh = 0.5;
-    recovery_times = [];
-    for d = 1:size(disturb_table,1)
-        t_d = disturb_table(d,1);
-        idx_d = find(t_vec >= t_d, 1, 'first');
-        if d < size(disturb_table,1)
-            idx_next = find(t_vec >= disturb_table(d+1,1), 1, 'first');
-        else
-            idx_next = length(t_vec);
-        end
-
-        window_dist = dist_cm(idx_d:idx_next);
-        is_rec = window_dist < rec_thresh;
-        idx_unrec = find(~is_rec, 1, 'last');
-
-        if ~isempty(idx_unrec) && idx_unrec < length(window_dist)
-            t_rec = t_vec(idx_d + idx_unrec) - t_d;
-            recovery_times(end+1) = t_rec; %#ok<AGROW>
-        else
-            % System never recovered from this disturbance
-            recovery_times(end+1) = (idx_next - idx_d) * dt; %#ok<AGROW>
-        end
-    end
-    
-    if ~isempty(recovery_times)
-        avg_recovery = mean(recovery_times);
-    else
-        avg_recovery = params.T_sim; % Penalty if no disturbances or completely failed
-    end
+    wind_rejection = rms(dist_cm(idx_wind_eval:end));
 
     % 4. RMS Error (last 2 seconds)
     idx_last_2s = find(t_vec >= t_vec(end)-2.0, 1, 'first');
@@ -215,6 +198,6 @@ function res = run_headless_sim(Kp_base, Ki_base, Kd_base, alpha_p, alpha_d, see
     % 6. Control Effort (RMS of actually-applied tilt in degrees, after delay)
     ctrl_effort = rms(sqrt(result.pitch_act.^2 + result.roll_act.^2)) * (180/pi);
 
-    res = [rise_time, overshoot_pct, avg_recovery, rms_err, itae, ctrl_effort];
+    res = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
 end
 

@@ -20,6 +20,10 @@ fprintf('Training config: Scenarios = %d, Pop Size = %d, Generations = %d\n', nu
 
 run('stewart_setup.m');
 
+% Use realistic (persistent-force) wind for GA training so Ki is actually needed
+global WIND_TYPE WIND_C_RATIO WIND_R_RATIO;
+WIND_TYPE = 'realistic';
+
 % 1. Pre-generate different scenarios (Domain Randomization)
 fprintf('Pre-generating %d random wind and noise scenarios...\n', num_scenarios);
 rng('shuffle');
@@ -40,8 +44,8 @@ GENERATIONS = generations;
 MUTATION_RATE = 0.15;  
 MUTATION_IMPACT = 0.5; 
 
-LB = [0, 0, 0];
-UB = [20, 5, 5];
+LB = [0,   0,    0];
+UB = [15,  30,   5];  % Ki up to 30: persistent wind benefits from strong integral
 
 % 3. Initialize Random Population
 pop = zeros(POP_SIZE, 3);

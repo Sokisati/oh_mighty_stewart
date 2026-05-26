@@ -1,5 +1,5 @@
 function F_table = generate_chaotic_disturbances(seed, T_sim, params)
-% GENERATE_CHAOTIC_DISTURBANCES Produces a sequence of pseudo-random disturbance kicks.
+% GENERATE_CHAOTIC_DISTURBANCES Produces a sequence of continuous chaotic wind acceleration.
 %
 %   F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %
@@ -10,7 +10,7 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
 %
 %   Output:
 %       F_table: [N x 3] matrix where each row is:
-%                [time(s), kick_vx(m/s), kick_vy(m/s)]
+%                [time(s), ax(m/s^2), ay(m/s^2)]
 
     if nargin < 3 || isempty(params)
         params.min_interval = 0.8;   % [s]
@@ -65,10 +65,10 @@ function F_table = generate_chaotic_disturbances(seed, T_sim, params)
         
         % 6. Convert to X-Y components
         angle_rad = angle_deg * pi / 180;
-        vx = force * cos(angle_rad);
-        vy = force * sin(angle_rad);
+        ax = force * cos(angle_rad);
+        ay = force * sin(angle_rad);
         
         % Append to table
-        F_table = [F_table; t_current, vx, vy];
+        F_table = [F_table; t_current, ax, ay];
     end
 end
