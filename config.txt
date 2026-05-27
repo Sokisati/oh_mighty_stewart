@@ -46,6 +46,17 @@ noise_spike_mag   = 0.0001  # Maximum amplitude of reading spikes [m]
 classic_c_ratio   = 0.5    # Default chaotic wind blend ratio
 classic_r_ratio   = 0.5    # Default realistic wind blend ratio
 
+bench_scen1_c     = 0.8    # Benchmark Scenario 1 Chaotic Wind Blend Ratio
+bench_scen1_r     = 0.6    # Benchmark Scenario 1 Realistic Wind Blend Ratio
+bench_scen2_c     = 0.4    # Benchmark Scenario 2 Chaotic Wind Blend Ratio
+bench_scen2_r     = 0.8    # Benchmark Scenario 2 Realistic Wind Blend Ratio
+bench_scen3_c     = 0.0    # Benchmark Scenario 3 Chaotic Wind Blend Ratio
+bench_scen3_r     = 1.0    # Benchmark Scenario 3 Realistic Wind Blend Ratio
+
+bench_adaptive_seeds    = 100    # Number of validation seeds for Adaptive Benchmark
+bench_comparative_seeds = 50     # Number of validation seeds for Comparative Benchmark
+bench_ultimate_seeds    = 100    # Number of validation seeds for Ultimate Benchmark
+
 drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negative score to prioritize safety)
 
 ga_pop_size       = 60    # Population size for GA

@@ -6,18 +6,18 @@ fprintf('====================================================\n\n');
 
 run('stewart_setup.m');
 
+config = load_config();
+
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
-    struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
-    struct('name', 'Scenario 2 (0.4 Chaotic + 0.8 Realistic)', 'type', 'combined', 'c_ratio', 0.4, 'r_ratio', 0.8), ...
-    struct('name', 'Scenario 3 (0.0 Chaotic + 1.0 Realistic)', 'type', 'combined', 'c_ratio', 0.0, 'r_ratio', 1.0)
+    struct('name', sprintf('Scenario 1 (%.1f Chaotic + %.1f Realistic)', config.bench_scen1_c, config.bench_scen1_r), 'type', 'combined', 'c_ratio', config.bench_scen1_c, 'r_ratio', config.bench_scen1_r), ...
+    struct('name', sprintf('Scenario 2 (%.1f Chaotic + %.1f Realistic)', config.bench_scen2_c, config.bench_scen2_r), 'type', 'combined', 'c_ratio', config.bench_scen2_c, 'r_ratio', config.bench_scen2_r), ...
+    struct('name', sprintf('Scenario 3 (%.1f Chaotic + %.1f Realistic)', config.bench_scen3_c, config.bench_scen3_r), 'type', 'combined', 'c_ratio', config.bench_scen3_c, 'r_ratio', config.bench_scen3_r)
 };
 
 num_wind_modes = length(WIND_SCENARIOS);
-num_val = 50; % 50 seeds for validation
+num_val = config.bench_comparative_seeds; % seeds for validation
 validation_seeds = randi([20001, 30000], 1, num_val);
-
-config = load_config();
 base_Kp = config.Kp;
 base_Ki = config.Ki;
 base_Kd = config.Kd;
