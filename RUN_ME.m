@@ -33,7 +33,13 @@ fprintf('  [7] Ultimate Benchmark      \n\n');
 choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
-if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '7')
+valid_choices = {'1', '2', '3', '4', '5', '6', '7'};
+if ~ismember(choice, valid_choices)
+    fprintf('Exiting program.\n');
+    return;
+end
+
+if strcmp(choice, '1')
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
     classic_r_ratio = config.classic_r_ratio;
@@ -99,7 +105,7 @@ switch choice
         run('benchmarks/stewart_ultimate_benchmark.m');
 
     otherwise
-        fprintf('[!] Invalid choice. Defaulting to PID ball balancing simulation.\n');
-        run('simulations/stewart_pid_sim.m');
+        fprintf('Exiting program.\n');
+        return;
 end
 

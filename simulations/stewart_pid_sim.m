@@ -99,6 +99,9 @@ pitch_log   = sim_result.pitch_cmd;
 roll_log    = sim_result.roll_cmd;
 N           = sim_result.N;
 t_vec       = sim_result.t_vec;
+Kp_log      = sim_result.Kp_log;
+Ki_log      = sim_result.Ki_log;
+Kd_log      = sim_result.Kd_log;
 
 pos_ref_pid = zeros(N, 6);
 pos_ref_pid(:, 3) = h0;
@@ -293,6 +296,9 @@ for i = 1:N
     set(h_trail,'XData',trail_buf(:,1),'YData',trail_buf(:,2),'ZData',trail_buf(:,3),'Color',tc);
 
     set(time_txt,'String',sprintf('t = %.2f s', t_vec(i)));
+    set(kp_txt, 'String', sprintf('Kp: %.2f', Kp_log(i)));
+    set(ki_txt, 'String', sprintf('Ki: %.2f', Ki_log(i)));
+    set(kd_txt, 'String', sprintf('Kd: %.2f', Kd_log(i)));
     is_disturb = any(abs(t_vec(i) - disturb_table(:,1)) < 0.4);
     if is_disturb
         set(mode_txt,'String','DISTURBANCE!','Color',[1.0 0.3 0.2]);

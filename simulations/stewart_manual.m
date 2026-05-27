@@ -36,7 +36,7 @@ set(fig,'KeyReleaseFcn',@kr_cb);
 ax = axes('Parent',fig,'Color',[0.05 0.05 0.07], ...
     'XColor',[0.55 0.55 0.55],'YColor',[0.55 0.55 0.55],'ZColor',[0.55 0.55 0.55], ...
     'GridColor',[0.28 0.28 0.28],'GridAlpha',0.4);
-hold(ax,'on'); grid(ax,'on'); axis(ax,'equal'); view(ax,40,28);
+hold(ax,'on'); grid(ax,'on'); axis(ax,'equal'); view(ax,90,30);
 
 lim = R_base * 1.6;
 xlim(ax,[-lim lim]); ylim(ax,[-lim lim]); zlim(ax,[0 h0*2.6]);
@@ -104,19 +104,7 @@ t_hud2  = text(ax,hx,hy,h0*2.28,'Ball: (0.0, 0.0) cm', ...
 t_hud3  = text(ax,hx,hy,h0*2.13,'Survived: 0.00 s', ...
     'Color',[1 0.8 0.2],'FontSize',11,'FontWeight','bold');
 
-global WIND_TYPE;
-global WIND_C_RATIO;
-global WIND_R_RATIO;
-if isempty(WIND_TYPE), WIND_TYPE = 'chaotic'; end
-if strcmpi(WIND_TYPE, 'combined')
-    if isempty(WIND_C_RATIO), WIND_C_RATIO = 0.3; end
-    if isempty(WIND_R_RATIO), WIND_R_RATIO = 1.0; end
-    wind_disp = sprintf('Wind: COMBINED (c:%.1f r:%.1f)', WIND_C_RATIO, WIND_R_RATIO);
-else
-    wind_disp = sprintf('Wind: %s', upper(WIND_TYPE));
-end
-t_wind = text(ax,hx,hy,h0*1.98, wind_disp, ...
-    'Color',[0.8 0.8 0.8],'FontSize',11,'FontWeight','bold');
+
 t_status= text(ax,0,0,h0*2.45,'GAME ON', ...
     'Color',[0.2 1.0 0.3],'FontSize',14,'FontWeight','bold','HorizontalAlignment','center');
 
