@@ -61,6 +61,17 @@ if show_plot
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
+% --- Generate Fixed (Deterministic) Scenarios ---
+rng(rng_seed);
+seeds = randi([1, 100000], 1, num_scenarios);
+disturbances = cell(num_scenarios, 1);
+noises = cell(num_scenarios, 1);
+for s = 1:num_scenarios
+    disturbances{s} = generate_disturbances(seeds(s), 30.0);
+    noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
+end
+fprintf('Generated %d fixed scenarios to create a deterministic fitness landscape.\n', num_scenarios);
+
 best_score_history = nan(max_generations, 1);
 
 while gen <= max_generations
@@ -93,15 +104,7 @@ while gen <= max_generations
     last_best_fit = inf;
 
     while gen <= max_generations
-        rng(rng_seed + gen * 100);
-        seeds = randi([1, 100000], 1, num_scenarios);
-        disturbances = cell(num_scenarios, 1);
-        noises = cell(num_scenarios, 1);
-        for s = 1:num_scenarios
-            disturbances{s} = generate_disturbances(seeds(s), 30.0);
-            noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
-        end
-
+        % Seeds are now fixed, no regeneration here
         pop = zeros(N, lambda_pop);
         for k = 1:lambda_pop
             pop(:, k) = xmean + sigma * B * (D .* randn(N,1));

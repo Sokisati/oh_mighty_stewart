@@ -75,17 +75,21 @@ if show_plot
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
+% --- Generate Fixed (Deterministic) Scenarios ---
+rng(rng_seed);
+seeds = randi([1, 100000], 1, num_scenarios);
+disturbances = cell(num_scenarios, 1);
+noises = cell(num_scenarios, 1);
+for s = 1:num_scenarios
+    disturbances{s} = generate_disturbances(seeds(s), 30.0);
+    noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
+end
+fprintf('Generated %d fixed scenarios to create a deterministic fitness landscape.\n', num_scenarios);
+
 max_tilt_rad = 30 * deg2rad;
 
 for gen = 1:GENERATIONS
-    rng(rng_seed + gen * 100);
-    seeds = randi([1, 100000], 1, num_scenarios);
-    disturbances = cell(num_scenarios, 1);
-    noises = cell(num_scenarios, 1);
-    for s = 1:num_scenarios
-        disturbances{s} = generate_disturbances(seeds(s), 30.0);
-        noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
-    end
+    % Seeds are now fixed, no regeneration here
 
     parfor i = 1:POP_SIZE
         [fitness_scores(i), robust_scores(i), num_drops(i)] = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);

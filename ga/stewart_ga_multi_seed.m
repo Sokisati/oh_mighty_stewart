@@ -74,18 +74,21 @@ if show_plot
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
+% --- Generate Fixed (Deterministic) Scenarios ---
+rng(rng_seed);
+seeds = randi([1, 100000], 1, num_scenarios);
+disturbances = cell(num_scenarios, 1);
+noises = cell(num_scenarios, 1);
+for s = 1:num_scenarios
+    disturbances{s} = generate_disturbances(seeds(s), 30.0);
+    noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
+end
+fprintf('Generated %d fixed scenarios to create a deterministic fitness landscape.\n', num_scenarios);
+
 max_tilt_rad = 30 * deg2rad;
 
 for gen = 1:generations
-    rng(rng_seed + gen * 100);
-    seeds = randi([1, 100000], 1, num_scenarios);
-    disturbances = cell(num_scenarios, 1);
-    noises = cell(num_scenarios, 1);
-    for s = 1:num_scenarios
-        disturbances{s} = generate_disturbances(seeds(s), 30.0);
-        noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
-    end
-
+    % Seeds are now fixed, no regeneration here
     flat_pop = reshape(pop, [POP_SIZE, 3]);
     flat_fit = zeros(POP_SIZE, 1);
     flat_rob = zeros(POP_SIZE, 1);

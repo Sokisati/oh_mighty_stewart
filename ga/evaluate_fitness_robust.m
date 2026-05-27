@@ -110,9 +110,9 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
     avg_cost = mean(costs);
     max_cost = max(costs);
 
-    % Robust cost blend: 70% average case + 30% worst-case
-    fitness = 0.7 * avg_cost + 0.3 * max_cost;
+    % Robust cost blend: 30% average case + 70% worst-case (Minimax strategy)
+    fitness = 0.3 * avg_cost + 0.7 * max_cost;
     
     % Return human-readable robust score just for printing
-    robust_score = 0.7 * mean(human_scores) + 0.3 * min(human_scores);
+    robust_score = 0.3 * mean(human_scores) + 0.7 * min(human_scores);
 end

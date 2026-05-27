@@ -59,7 +59,7 @@ real_angle_spread = 10.0   # Angular standard deviation around base wind angle [
 chao_min_interval = 1.8    # Minimum interval between chaotic kicks [seconds]
 chao_max_interval = 3.0    # Maximum interval between chaotic kicks [seconds]
 chao_min_force    = 0.45   # Minimum chaotic kick magnitude/force [m/s]
-chao_max_force    = 0.75   # Maximum chaotic kick magnitude/force [m/s]
+chao_max_force    = 0.78   # Maximum chaotic kick magnitude/force [m/s]
 chao_angle_drift_speed = 25.0 # Speed of dominant angle rotation [degrees/second]
 chao_angle_spread = 30.0   # Angular standard deviation of wind direction [degrees]
 chao_anti_cancel_deg = 45.0 # Anti-cancellation angle margin to avoid opposite kicks [degrees]
@@ -86,13 +86,13 @@ drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negati
 # -------------------------------------------------------------------------
 # OPTIMIZER PARAMETERS (GA, DE, CMA-ES)
 # -------------------------------------------------------------------------
-ga_pop_size       = 45    # Population size for GA
-ga_generations    = 100   # Number of generations for GA
+ga_pop_size       = 60    # Population size for GA
+ga_generations    = 120   # Number of generations for GA
 
-de_pop_size       = 45    # Population size for DE
-de_generations    = 100   # Number of generations for DE
+de_pop_size       = 60    # Population size for DE
+de_generations    = 120   # Number of generations for DE
 de_F_scale        = 0.8   # Scaling factor for DE mutation
 de_CR             = 0.9   # Crossover probability for DE
 
-cmaes_lambda      = 24    # Offspring (population) size for CMA-ES
-cmaes_generations = 100   # Number of generations for CMA-ES
+cmaes_lambda      = 40    # Offspring (population) size for CMA-ES
+cmaes_generations = 120   # Number of generations for CMA-ES
