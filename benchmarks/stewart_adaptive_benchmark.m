@@ -55,12 +55,13 @@ for sc = 1:num_wind_modes
     res1 = zeros(num_val, 6); f1 = zeros(num_val, 1);
     res2 = zeros(num_val, 6); f2 = zeros(num_val, 1);
     
-    fprintf('Validating %d unseen seeds...\n', num_val);
-    h_wait = waitbar(0, sprintf('Scenario %d/%d Validation...', sc, num_wind_modes));
+    fprintf('Validating %d unseen seeds: ', num_val);
     
     for v = 1:num_val
         seed = validation_seeds(v);
-        waitbar(v/num_val, h_wait);
+        if mod(v, 10) == 0
+            fprintf('.');
+        end
         
         % 1. Classic PID
         [r, f, ~] = run_adaptive_sim('classic', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
@@ -74,7 +75,7 @@ for sc = 1:num_wind_modes
             mrac_logs_all{sc} = m_logs;
         end
     end
-    close(h_wait);
+    fprintf('\n');
     
     R_all{1, sc} = res1; F_all{1, sc} = f1;
     R_all{2, sc} = res2; F_all{2, sc} = f2;

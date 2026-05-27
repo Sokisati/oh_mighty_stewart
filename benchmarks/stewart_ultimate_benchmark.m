@@ -68,11 +68,11 @@ for sc = 1:num_wind_modes
         F_all{m, sc} = zeros(num_val, 1);
     end
     
-    h_wait = waitbar(0, sprintf('Scenario %d/%d Validation...', sc, num_wind_modes));
-    
     for v = 1:num_val
         vs = validation_seeds(v);
-        waitbar(v/num_val, h_wait);
+        if mod(v, 10) == 0
+            fprintf('.');
+        end
         
         % 1. Classic PID (Fixed, Analytic)
         p = Params{1, sc};
