@@ -2,7 +2,7 @@
 %  Ultimate Benchmark for Stewart Platform
 %  Compares 4 methods across 3 wind scenarios (100 unseen seeds each):
 %  1. Classic PID (Fixed, Analytic Baseline)
-%  2. MRAC Adaptive PID (Adaptive, Analytic Baseline)
+%  2. NLPID Adaptive PID (Adaptive, Analytic Baseline)
 %  3. Genetic PID (Fixed, Tuned by Island GA)
 %  4. Genetic Adaptive PID (Adaptive, Tuned by Island GA)
 
@@ -42,7 +42,7 @@ global WIND_TYPE;
 global WIND_C_RATIO;
 global WIND_R_RATIO;
 
-mrac_logs_all = cell(num_wind_modes, 1);
+nlpid_logs_all = cell(num_wind_modes, 1);
 
 for sc = 1:num_wind_modes
     scen = WIND_SCENARIOS{sc};
@@ -79,8 +79,8 @@ for sc = 1:num_wind_modes
         [r, f, ~] = run_adaptive_sim('classic', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{1, sc}(v,:) = r; F_all{1, sc}(v) = f;
         
-        % 2. MRAC Adaptive PID (Analytic Baseline)
-        [r, f, ~] = run_adaptive_sim('mrac', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        % 2. NLPID Adaptive PID (Analytic Baseline)
+        [r, f, ~] = run_adaptive_sim('nlpid', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{2, sc}(v,:) = r; F_all{2, sc}(v) = f;
         
         % 3. Genetic PID (Fixed, Tuned)
@@ -88,13 +88,13 @@ for sc = 1:num_wind_modes
         [r, f, ~] = run_adaptive_sim('classic', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{3, sc}(v,:) = r; F_all{3, sc}(v) = f;
         
-        % 4. Genetic Adaptive PID (MRAC, Tuned Baseline)
-        [r, f, m_logs] = run_adaptive_sim('mrac', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        % 4. Genetic Adaptive PID (NLPID, Tuned Baseline)
+        [r, f, n_logs] = run_adaptive_sim('nlpid', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{4, sc}(v,:) = r; F_all{4, sc}(v) = f;
         
-        % Log MRAC gain changes for the first seed of GA-MRAC
+        % Log NLPID gain changes for the first seed of GA-NLPID
         if v == 1
-            mrac_logs_all{sc} = m_logs;
+            nlpid_logs_all{sc} = n_logs;
         end
     end
     fprintf('\n');
@@ -110,9 +110,9 @@ for sc = 1:num_wind_modes
     
     method_names = {
         sprintf('1. Classic PID (%.2f, %.2f, %.2f)', Params{1, sc}(1), Params{1, sc}(2), Params{1, sc}(3)), ...
-        sprintf('2. MRAC Adaptive (%.2f, %.2f, %.2f)', Params{1, sc}(1), Params{1, sc}(2), Params{1, sc}(3)), ...
+        sprintf('2. NLPID Adaptive (%.2f, %.2f, %.2f)', Params{1, sc}(1), Params{1, sc}(2), Params{1, sc}(3)), ...
         sprintf('3. Genetic PID (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3)), ...
-        sprintf('4. Gen-Adapt MRAC (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3))
+        sprintf('4. Gen-Adapt NLPID (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3))
     };
     
     % Reference metrics for score (Classic PID averages)
@@ -155,7 +155,7 @@ fprintf('=======================================================================
 fprintf(' %-38s | Overall Average Score\n', 'Method');
 fprintf('------------------------------------------------------------------------------------\n');
 
-m_names = {'1. Classic PID (Analytic Fixed)', '2. MRAC Adaptive (Analytic Base)', '3. Genetic PID (GA Fixed)', '4. Genetic Adaptive (GA Base)'};
+m_names = {'1. Classic PID (Analytic Fixed)', '2. NLPID Adaptive (Analytic Base)', '3. Genetic PID (GA Fixed)', '4. Genetic Adaptive (GA Base)'};
 for m = 1:4
     avg_score = 0;
     for sc = 1:num_wind_modes
@@ -167,28 +167,28 @@ end
 fprintf('====================================================================================\n\n');
 
 %% =========================================================
-%  PLOT GA-MRAC GAIN HISTORIES
+%  PLOT GA-NLPID GAIN HISTORIES
 %% =========================================================
-figure('Name', 'Genetic Adaptive MRAC Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
+figure('Name', 'Genetic Adaptive NLPID Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
 for sc = 1:num_wind_modes
-    m_logs = mrac_logs_all{sc};
-    t = m_logs.t;
+    n_logs = nlpid_logs_all{sc};
+    t = n_logs.t;
     
     base_Kp_ga = Params{2, sc}(1);
     base_Ki_ga = Params{2, sc}(2);
     base_Kd_ga = Params{2, sc}(3);
     
     subplot(3, 1, sc);
-    plot(t, m_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
-    plot(t, m_logs.Ki, 'g', 'LineWidth', 1.5);
-    plot(t, m_logs.Kd, 'b', 'LineWidth', 1.5);
+    plot(t, n_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
+    plot(t, n_logs.Ki, 'g', 'LineWidth', 1.5);
+    plot(t, n_logs.Kd, 'b', 'LineWidth', 1.5);
     
     plot([t(1) t(end)], [base_Kp_ga base_Kp_ga], 'r--');
     plot([t(1) t(end)], [base_Ki_ga base_Ki_ga], 'g--');
     plot([t(1) t(end)], [base_Kd_ga base_Kd_ga], 'b--');
     hold off;
     
-    title(sprintf('GA-MRAC Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
+    title(sprintf('GA-NLPID Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
     xlabel('Time (s)');
     ylabel('Gain Value');
     legend('Kp', 'Ki', 'Kd', 'Location', 'best');
@@ -208,14 +208,13 @@ function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_bas
     params.ball_x0  = 0.05;
     params.ball_y0  = 0.03;
 
-    if strcmp(type, 'mrac')
-        params.mrac.active = true;
-        params.mrac.gamma_p = 250.0;
-        params.mrac.sigma_p = 0.5;
-        params.mrac.gamma_i = 500.0;
-        params.mrac.sigma_i = 1.0;
-        params.mrac.gamma_d = 250.0;
-        params.mrac.sigma_d = 0.5;
+    if strcmp(type, 'nlpid')
+        params.nlpid.active = true;
+        params.nlpid.e_scale = 0.03;   % 3cm is the saturation scale for error
+        params.nlpid.i_scale = 0.02;   % 2cm.s is the saturation scale for integral
+        params.nlpid.kp_boost = 1.5;   % Max Kp boost
+        params.nlpid.kd_boost = 0.5;   % Max Kd boost
+        params.nlpid.ki_boost = 1.5;   % Max Ki boost
     end
 
     disturb_table = generate_disturbances(seed, params.T_sim);

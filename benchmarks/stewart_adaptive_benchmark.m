@@ -32,11 +32,12 @@ fprintf('[+] Base Analytical PID Gains Loaded from config.txt:\n');
 fprintf('    Kp = %.3f, Ki = %.3f, Kd = %.3f\n', base_Kp, base_Ki, base_Kd);
 fprintf('[+] Number of Validation Seeds per Scenario: %d\n', num_val);
 
-% Storage for results: 1=Classic, 2=MRAC
-R_all = cell(2, num_wind_modes);
-F_all = cell(2, num_wind_modes);
-scores_all = cell(2, num_wind_modes);
+% Storage for results: 1=Classic, 2=MRAC, 3=NLPID
+R_all = cell(3, num_wind_modes);
+F_all = cell(3, num_wind_modes);
+scores_all = cell(3, num_wind_modes);
 mrac_logs_all = cell(1, num_wind_modes);
+nlpid_logs_all = cell(1, num_wind_modes);
 
 global WIND_TYPE;
 global WIND_C_RATIO;
@@ -54,6 +55,7 @@ for sc = 1:num_wind_modes
     
     res1 = zeros(num_val, 6); f1 = zeros(num_val, 1);
     res2 = zeros(num_val, 6); f2 = zeros(num_val, 1);
+    res3 = zeros(num_val, 6); f3 = zeros(num_val, 1);
     
     fprintf('Validating %d unseen seeds: ', num_val);
     
@@ -71,14 +73,20 @@ for sc = 1:num_wind_modes
         [r, f, m_logs] = run_adaptive_sim('mrac', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res2(v, :) = r; f2(v) = f;
         
+        % 3. NLPID Adaptive PID
+        [r, f, n_logs] = run_adaptive_sim('nlpid', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
+        res3(v, :) = r; f3(v) = f;
+        
         if v == 1
             mrac_logs_all{sc} = m_logs;
+            nlpid_logs_all{sc} = n_logs;
         end
     end
     fprintf('\n');
     
     R_all{1, sc} = res1; F_all{1, sc} = f1;
     R_all{2, sc} = res2; F_all{2, sc} = f2;
+    R_all{3, sc} = res3; F_all{3, sc} = f3;
 end
 
 %% =========================================================
@@ -91,7 +99,8 @@ for sc = 1:num_wind_modes
     
     method_names = {
         '1. Classic PID (Fixed)', ...
-        '2. MRAC Adaptive PID'
+        '2. MRAC Adaptive PID', ...
+        '3. NLPID Adaptive PID'
     };
     
     % Reference metrics for score (Classic PID averages)
@@ -105,7 +114,7 @@ for sc = 1:num_wind_modes
     fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | Drops | TOTAL SCORE\n', 'Method');
     fprintf('-------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
     
-    for m = 1:2
+    for m = 1:3
         R = R_all{m, sc};
         F = F_all{m, sc};
         
@@ -134,8 +143,8 @@ fprintf('=======================================================================
 fprintf(' %-38s | Overall Average Score\n', 'Method');
 fprintf('------------------------------------------------------------------------------------\n');
 
-m_names = {'1. Classic PID (Fixed)', '2. MRAC Adaptive PID'};
-for m = 1:2
+m_names = {'1. Classic PID (Fixed)', '2. MRAC Adaptive PID', '3. NLPID Adaptive PID'};
+for m = 1:3
     avg_score = 0;
     for sc = 1:num_wind_modes
         avg_score = avg_score + mean(scores_all{m, sc});
@@ -146,27 +155,43 @@ end
 fprintf('====================================================================================\n\n');
 
 %% =========================================================
-%  PLOT ADAPTIVE GAIN HISTORIES
+%  PLOT ADAPTIVE GAIN HISTORIES (Seed #1)
 %% =========================================================
-figure('Name', 'Adaptive PID Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
+% Plot MRAC
+figure('Name', 'MRAC Gain Adaptation (Seed #1)', 'Position', [100, 100, 1200, 800]);
 for sc = 1:num_wind_modes
     m_logs = mrac_logs_all{sc};
     t = m_logs.t;
-    
     subplot(3, 1, sc);
     plot(t, m_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
     plot(t, m_logs.Ki, 'g', 'LineWidth', 1.5);
     plot(t, m_logs.Kd, 'b', 'LineWidth', 1.5);
-    
-    plot([t(1) t(end)], [base_Kp base_Kp], 'r--');
-    plot([t(1) t(end)], [base_Ki base_Ki], 'g--');
-    plot([t(1) t(end)], [base_Kd base_Kd], 'b--');
-    hold off;
-    
+    plot(t, repmat(base_Kp, size(t)), 'r--', 'LineWidth', 1);
+    plot(t, repmat(base_Ki, size(t)), 'g--', 'LineWidth', 1);
+    plot(t, repmat(base_Kd, size(t)), 'b--', 'LineWidth', 1);
     title(sprintf('MRAC Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
-    xlabel('Time (s)');
-    ylabel('Gain Value');
-    legend('Kp', 'Ki', 'Kd', 'Location', 'best');
+    xlabel('Time (s)'); ylabel('Gain Value');
+    legend('Kp', 'Ki', 'Kd', 'Location', 'eastoutside');
+    ylim([0, 10]);
+    grid on;
+end
+
+% Plot NLPID
+figure('Name', 'NLPID Gain Adaptation (Seed #1)', 'Position', [150, 150, 1200, 800]);
+for sc = 1:num_wind_modes
+    n_logs = nlpid_logs_all{sc};
+    t = n_logs.t;
+    subplot(3, 1, sc);
+    plot(t, n_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
+    plot(t, n_logs.Ki, 'g', 'LineWidth', 1.5);
+    plot(t, n_logs.Kd, 'b', 'LineWidth', 1.5);
+    plot(t, repmat(base_Kp, size(t)), 'r--', 'LineWidth', 1);
+    plot(t, repmat(base_Ki, size(t)), 'g--', 'LineWidth', 1);
+    plot(t, repmat(base_Kd, size(t)), 'b--', 'LineWidth', 1);
+    title(sprintf('NLPID Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
+    xlabel('Time (s)'); ylabel('Gain Value');
+    legend('Kp', 'Ki', 'Kd', 'Location', 'eastoutside');
+    ylim([0, 15]);
     grid on;
 end
 
@@ -191,6 +216,13 @@ function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_bas
         params.mrac.sigma_i = 1.0;
         params.mrac.gamma_d = 250.0;
         params.mrac.sigma_d = 0.5;
+    elseif strcmp(type, 'nlpid')
+        params.nlpid.active = true;
+        params.nlpid.e_scale = 0.03;   % 3cm is the saturation scale for error
+        params.nlpid.i_scale = 0.02;   % 2cm.s is the saturation scale for integral
+        params.nlpid.kp_boost = 1.5;   % Max Kp boost
+        params.nlpid.kd_boost = 0.5;   % Max Kd boost
+        params.nlpid.ki_boost = 1.5;   % Max Ki boost
     end
 
     disturb_table = generate_disturbances(seed, params.T_sim);

@@ -33,13 +33,13 @@ cd(this_dir);
 
 %% Mode selection
 fprintf('Run mode:\n');
-fprintf('  [1] PID Ball Balancing      (closed-loop, classic PID)\n');
-fprintf('  [2] Manual Control          (arrows + WASD, game mode)\n');
-fprintf('  [3] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
-fprintf('  [4] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
-fprintf('  [5] Evolutionary Benchmark (Compare GA, CMA-ES)\n');
-fprintf('  [6] Adaptive PID Benchmark  (Classic vs MRAC)\n');
-fprintf('  [7] Ultimate Benchmark      (Classic vs MRAC vs GA vs GA-MRAC)\n\n');
+fprintf('  [1] PID Ball Balancing      \n');
+fprintf('  [2] Manual Control          \n');
+fprintf('  [3] Wind Analyzer           \n');
+fprintf('  [4] Ziegler-Nichols Auto-Tuner \n');
+fprintf('  [5] Evolutionary Benchmark \n');
+fprintf('  [6] Adaptive PID Benchmark  \n');
+fprintf('  [7] Ultimate Benchmark      \n\n');
 
 choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end

@@ -206,6 +206,34 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
             Kp_eff = max(Kp, min(Kp * 1.15, Kp_eff + dKp * dt));
             Ki_eff = max(Ki, min(Ki * 5.0, Ki_eff + dKi * dt));
             Kd_eff = max(Kd, min(Kd * 2.0, Kd_eff + dKd * dt));
+        elseif isfield(params, 'nlpid') && params.nlpid.active
+            % Non-Linear Expert PID (NLPID) - Robust Version
+            err_mag = sqrt(ex^2 + ey^2);
+            int_mag = sqrt(int_ex^2 + int_ey^2);
+            
+            % 1. Danger Reflex (Quadratic scaling ignores small noise, reacts strongly to large error)
+            % If err_mag = e_scale, ratio is 1.0. If err_mag is half, ratio is 0.25.
+            e_ratio = min(1.0, (err_mag / params.nlpid.e_scale)^2);
+            
+            % 2. Target Gains based on Expert Rules
+            % Boost Kp and Kd together to act as an elastic wall without losing damping
+            Kp_target = Kp + params.nlpid.kp_boost * e_ratio;
+            Kd_target = Kd + params.nlpid.kd_boost * e_ratio;
+            
+            % 3. Wind Rejection (Integral Boost)
+            % If integral is building up (steady wind), boost Ki quadratically
+            i_ratio = min(1.0, (int_mag / params.nlpid.i_scale)^2);
+            Ki_target = Ki + params.nlpid.ki_boost * i_ratio;
+            
+            % 4. Smooth Application (Low-Pass Filter)
+            % Expert logic computes targets instantly, but physical motors need smooth transitions.
+            % We use a 50ms time constant to prevent violent jitter.
+            tau = 0.05; 
+            alpha_filter = dt / (tau + dt);
+            
+            Kp_eff = Kp_eff + alpha_filter * (Kp_target - Kp_eff);
+            Ki_eff = Ki_eff + alpha_filter * (Ki_target - Ki_eff);
+            Kd_eff = Kd_eff + alpha_filter * (Kd_target - Kd_eff);
         end
         
         Kp_log(i) = Kp_eff;
