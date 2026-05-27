@@ -184,12 +184,12 @@ function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_bas
 
     if strcmp(type, 'mrac')
         params.mrac.active = true;
-        params.mrac.gamma_p = 50.0;
-        params.mrac.sigma_p = 2.0;
+        params.mrac.gamma_p = 250.0;
+        params.mrac.sigma_p = 0.5;
         params.mrac.gamma_i = 500.0;
         params.mrac.sigma_i = 1.0;
-        params.mrac.gamma_d = 100.0;
-        params.mrac.sigma_d = 2.0;
+        params.mrac.gamma_d = 250.0;
+        params.mrac.sigma_d = 0.5;
     end
 
     disturb_table = generate_disturbances(seed, params.T_sim);

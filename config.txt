@@ -36,7 +36,7 @@ max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
 # PID CONTROLLER PARAMETERS (Analytical Pole Placement Baseline)
 # Calculated for bandwidth wn=7.5, zeta=0.8, p3=0.1
 # -------------------------------------------------------------------------
-Kp = 8.20
+Kp = 7.20
 Ki = 0.80
 Kd = 1.722
 

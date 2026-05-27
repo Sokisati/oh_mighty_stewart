@@ -173,16 +173,16 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
             corr_i   = ex * int_ex + ey * int_ey;
             corr_d   = ex * dex + ey * dey;
             
-            % Smooth Adaptation (No IF switches to prevent chattering)
+            % Smooth Adaptation (No IF switches for normal gradient)
             dKp = params.mrac.gamma_p * e_pos_sq - params.mrac.sigma_p * (Kp_eff - Kp);
             dKi = params.mrac.gamma_i * corr_i   - params.mrac.sigma_i * (Ki_eff - Ki);
             dKd = params.mrac.gamma_d * corr_d   - params.mrac.sigma_d * (Kd_eff - Kd);
             
-            % HARD LIMITS for Aggressive Integral Adaptation:
-            % Kp is highly restricted (max 1.1x) to prevent delay margin violations
-            % Ki is allowed to grow aggressively (max 5.0x) to reject steady wind
-            % Kd is allowed to double (max 2.0x) to damp out wind turbulence
-            Kp_eff = max(Kp, min(Kp * 1.1, Kp_eff + dKp * dt));
+            % BALANCED LIMITS for Robust MRAC:
+            % Kp can grow up to 1.15x to catch gusts and fix baselines without causing vibrations
+            % Ki can grow up to 5.0x to reject steady wind
+            % Kd can grow up to 2.0x to damp out the increased Kp and turbulence
+            Kp_eff = max(Kp, min(Kp * 1.15, Kp_eff + dKp * dt));
             Ki_eff = max(Ki, min(Ki * 5.0, Ki_eff + dKi * dt));
             Kd_eff = max(Kd, min(Kd * 2.0, Kd_eff + dKd * dt));
         end
