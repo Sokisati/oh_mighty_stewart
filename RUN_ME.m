@@ -14,25 +14,39 @@ fprintf('================================================\n\n');
 this_dir = fileparts(mfilename('fullpath'));
 addpath(genpath(this_dir));
 cd(this_dir);
+%% 
+%% RUN_ME.m
+%  ============================================================
+%  STEWART PLATFORM - MAIN ENTRY POINT
+
+clc;
+fprintf('\n');
+fprintf('================================================\n');
+fprintf('       STEWART PLATFORM SIMULATION\n');
+fprintf('       6-Leg Gough-Stewart Type\n');
+fprintf('================================================\n\n');
+
+% Add this folder to the MATLAB path
+this_dir = fileparts(mfilename('fullpath'));
+addpath(genpath(this_dir));
+cd(this_dir);
 
 %% Mode selection
 fprintf('Run mode:\n');
 fprintf('  [1] PID Ball Balancing      (closed-loop, classic PID)\n');
 fprintf('  [2] Manual Control          (arrows + WASD, game mode)\n');
-fprintf('  [3] Robust GA PID Tuner     (Train 1 PID across 100 Scenarios)\n');
-fprintf('  [4] The Ultimate Benchmark  (Compare Methods on 100 Seeds)\n');
-fprintf('  [5] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
-fprintf('  [6] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
-fprintf('  [7] MRAC Adaptive PID Simulation (Energy-based with leakage)\n');
-fprintf('  [8] Lyapunov Adaptive PID Simulation (Sliding surface with leakage)\n');
-fprintf('  [9] Robust CMA-ES PID Tuner (Covariance Matrix Adaptation)\n');
-fprintf('  [10] Evolutionary Benchmark (Compare GA, CMA-ES)\n\n');
+fprintf('  [3] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
+fprintf('  [4] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
+fprintf('  [5] MRAC Adaptive PID Simulation (Energy-based with leakage)\n');
+fprintf('  [6] Lyapunov Adaptive PID Simulation (Sliding surface with leakage)\n');
+fprintf('  [7] Evolutionary Benchmark (Compare GA, CMA-ES)\n');
+fprintf('  [8] Adaptive PID Benchmark  (Classic vs MRAC vs Lyapunov)\n\n');
 
-choice = input('Enter choice (1-10, Enter = 1): ', 's');
+choice = input('Enter choice (1-8, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
-% If not running the benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
-if ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '10')
+% If not running manual mode, benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
+if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '7') && ~strcmp(choice, '8')
     % Default Classic Scenario ratios (loaded from config.txt)
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
@@ -72,45 +86,38 @@ fprintf('\n');
 switch choice
     case '1'
         fprintf('[->] Launching PID ball balancing simulation...\n\n');
-        run('stewart_pid_sim.m');
+        run('simulations/stewart_pid_sim.m');
 
     case '2'
         fprintf('[->] Launching manual control (game mode)...\n\n');
-        run('stewart_manual.m');
+        run('simulations/stewart_manual.m');
 
     case '3'
-        fprintf('[->] Launching Robust Genetic Algorithm...\n\n');
-        run('ga/stewart_ga_multi_seed.m');
-        
-    case '4'
-        fprintf('[->] Launching The Ultimate Benchmark...\n\n');
-        run('stewart_final_benchmark.m');
-        
-    case '5'
         fprintf('[->] Launching Wind Analyzer...\n\n');
         run('benchmarks/stewart_wind_analyzer.m');
         
-    case '6'
+    case '4'
         fprintf('[->] Launching Ziegler-Nichols Auto-Tuner...\n\n');
         run('tuning/stewart_zn_tuner.m');
 
-    case '7'
+    case '5'
         fprintf('[->] Launching MRAC Adaptive PID Simulation...\n\n');
         run('simulations/stewart_mrac_sim.m');
 
-    case '8'
+    case '6'
         fprintf('[->] Launching Lyapunov Adaptive PID Simulation...\n\n');
         run('simulations/stewart_lyap_sim.m');
 
-    case '9'
-        fprintf('[->] Launching Robust CMA-ES PID Tuner...\n\n');
-        run('ga/stewart_cmaes_multi_seed.m');
-
-    case '10'
+    case '7'
         fprintf('[->] Launching Evolutionary Algorithms Comparative Benchmark...\n\n');
         run('benchmarks/stewart_comparative_benchmark.m');
+        
+    case '8'
+        fprintf('[->] Launching Adaptive PID Benchmark...\n\n');
+        run('benchmarks/stewart_adaptive_benchmark.m');
 
     otherwise
         fprintf('[!] Invalid choice. Defaulting to PID ball balancing simulation.\n');
-        run('stewart_pid_sim.m');
+        run('simulations/stewart_pid_sim.m');
 end
+

@@ -14,17 +14,17 @@ fprintf('========================================================\n');
 fprintf('       ZIEGLER-NICHOLS OTONOM TUNING MODÜLÜ\n');
 fprintf('========================================================\n\n');
 
-%% 1. Fiziksel Parametreler
-params.dt       = 0.01;
-params.T_sim    = 20.0; % Daha uzun simülasyon, salınımları net görmek için
-params.g_acc    = 9.81;
-params.c_roll   = 0.01;
-params.r_limit  = 0.20; % 20 cm tepsi yarıçapı
-params.max_tilt = 30 * (pi / 180);
+%% 1. Fiziksel Parametreler (config.txt'den yüklenir)
+conf = load_config();
 
-% Güncel fiziksel limitlerimiz (Slew Rate & Delay)
-params.delay_sec = 0.020; % 20 ms
-params.slew_rate = 350 * (pi / 180); % 350 deg/s
+params.dt       = conf.dt;
+params.T_sim    = 20.0; % Daha uzun simülasyon, salınımları net görmek için
+params.g_acc    = conf.g_acc;
+params.c_roll   = conf.c_roll;
+params.r_limit  = conf.R_base; 
+params.max_tilt = conf.max_tilt_deg * (pi / 180);
+params.delay_sec = conf.delay_sec;
+params.slew_rate = conf.slew_rate_deg * (pi / 180);
 
 % Z-N testi için topu merkez dışından başlat
 params.ball_x0 = 0.05; 
@@ -129,25 +129,51 @@ for iter = 1:max_iters
     end
 end
 
-%% 3. Görselleştirme (Plotting)
+%% 3. Görselleştirme (Plotting) ve 3D Simülasyon
 if ~isempty(best_res)
     r_plot = sqrt(best_res.ball_x.^2 + best_res.ball_y.^2) * 100; % cm
-    figure('Name', 'Ziegler-Nichols Kararlılık Sınırı (Ultimate Gain)', 'Position', [100, 100, 900, 500]);
-    subplot(2,1,1);
-    plot(best_res.t_vec, best_res.ball_x * 100, 'b-', 'LineWidth', 1.5); hold on;
-    plot(best_res.t_vec, best_res.ball_y * 100, 'g-', 'LineWidth', 1.2);
-    yline(0, 'k--', 'LineWidth', 0.8);
-    title(sprintf('X ve Y Pozisyonları (Ku = %.3f)', Ku));
-    xlabel('Zaman (s)'); ylabel('Pozisyon (cm)');
-    legend('X', 'Y', 'Merkez', 'Location', 'best'); grid on;
+    fig = figure('Name', 'Ziegler-Nichols Kararlılık Sınırı', 'Position', [100, 100, 900, 500], 'Color', 'w');
     
-    subplot(2,1,2);
-    plot(best_res.t_vec, r_plot, 'r-', 'LineWidth', 1.5); hold on;
-    plot(best_res.t_vec(best_idx_peaks), r_plot(best_idx_peaks), 'ko', 'MarkerFaceColor', 'k', 'MarkerSize', 6);
-    title(sprintf('Radyal Uzaklık — Ku = %.3f, Tu = %.3f s', Ku, Tu));
-    xlabel('Zaman (s)'); ylabel('Uzaklık (cm)');
-    legend('Radyal Uzaklık', 'Tepe Noktaları', 'Location', 'best'); grid on;
+    % Ana Başlık (Siyah Renk)
+    sgtitle(sprintf('Ziegler-Nichols Yöntemi: Sabit Genlikli Salınım Analizi\nBulunan Kritik Kazanç (Ku) = %.3f, Kritik Periyot (Tu) = %.3f s', Ku, Tu), 'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k');
+
+    % Alt Grafik 1: Eksenler
+    ax1 = subplot(2,1,1);
+    plot(ax1, best_res.t_vec, best_res.ball_x * 100, '-', 'Color', [0 0.447 0.741], 'LineWidth', 2.0); hold(ax1, 'on');
+    plot(ax1, best_res.t_vec, best_res.ball_y * 100, '-', 'Color', [0.850 0.325 0.098], 'LineWidth', 2.0);
+    yline(ax1, 0, 'k--', 'LineWidth', 1.0);
+    title(ax1, 'Eksenel Konum Değişimleri (X ve Y)', 'FontSize', 12, 'Color', 'k');
+    xlabel(ax1, 'Zaman (s)', 'FontSize', 11, 'Color', 'k'); 
+    ylabel(ax1, 'Pozisyon (cm)', 'FontSize', 11, 'Color', 'k');
+    legend(ax1, 'X Ekseni', 'Y Ekseni', 'Merkez (0 cm)', 'Location', 'northeast', 'TextColor', 'k'); 
+    grid(ax1, 'on');
+    set(ax1, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
+    
+    % Alt Grafik 2: Radyal Uzaklık ve Tepeler
+    ax2 = subplot(2,1,2);
+    plot(ax2, best_res.t_vec, r_plot, '-', 'Color', [0.466 0.674 0.188], 'LineWidth', 2.0); hold(ax2, 'on');
+    plot(ax2, best_res.t_vec(best_idx_peaks), r_plot(best_idx_peaks), 'ro', 'MarkerFaceColor', 'r', 'MarkerSize', 6);
+    
+    % Tepe noktaları arasına yatay çizgi
+    mean_amp = mean(r_plot(best_idx_peaks));
+    yline(ax2, mean_amp, 'b--', 'LineWidth', 1.5, 'DisplayName', 'Ortalama Salınım Genliği');
+    
+    title(ax2, 'Radyal Salınım Genliği ve Kritik Periyot (Tu) Tespiti', 'FontSize', 12, 'Color', 'k');
+    xlabel(ax2, 'Zaman (s)', 'FontSize', 11, 'Color', 'k'); 
+    ylabel(ax2, 'Radyal Uzaklık (cm)', 'FontSize', 11, 'Color', 'k');
+    legend(ax2, 'Sistem Yanıtı', 'Tepe Noktaları', 'Ortalama Genlik', 'Location', 'northeast', 'TextColor', 'k'); 
+    grid(ax2, 'on');
+    set(ax2, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
+    
+    % Bilgi kutusu
+    dim = [0.15 0.01 0.7 0.06];
+    annotation('textbox', dim, 'String', sprintf('Not: Kp = %.3f kazanç değerinde, sönümlenmeyen veya büyümeyen (marjinal kararlı) sabit genlikli salınımlar elde edilmiştir.', Ku), 'FitBoxToText', 'on', 'BackgroundColor', [0.95 0.95 0.95], 'EdgeColor', 'k', 'Color', 'k', 'FontSize', 10, 'HorizontalAlignment', 'center');
+
     drawnow;
+    
+    % 3D Görselleştirme (Simülasyon)
+    fprintf('\n[+] Kp = %.3f değerindeki sabit salınımlar 3D olarak görselleştiriliyor...\n', Ku);
+    visualize_stewart(best_res, Ku, 0, 0, []);
 end
 
 %% 4. PID Parametrelerini Hesaplama ve Konsola Yazdırma

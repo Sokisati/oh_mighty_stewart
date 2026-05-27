@@ -35,9 +35,28 @@ pos_ref_pid(:, 3) = h0;   % fixed height
 %% =========================================================
 %  PID PARAMETERS
 %  Output: tilt angle [rad] per meter of ball displacement
-%  Tune Kp, Ki, Kd in config.txt.
 %% =========================================================
-load_config;
+load_config; % Loads Kp, Ki, Kd as analytical baseline from config
+
+fprintf('\nPID Parametre Secimi:\n');
+fprintf('  [1] Custom Degerler (Kp, Ki, Kd degerlerini manuel girin)\n');
+fprintf('  [2] Analitik Yontemle Hesaplanmis Degerler (Kp=%.3f, Ki=%.3f, Kd=%.3f)\n', Kp, Ki, Kd);
+pid_choice = input('Seciminiz (1-2, Varsayilan = 2): ', 's');
+
+if strcmp(pid_choice, '1')
+    str_Kp = input(sprintf('Kp degerini girin (Eski: %.3f): ', Kp), 's');
+    if ~isempty(str_Kp), Kp = str2double(str_Kp); end
+    
+    str_Ki = input(sprintf('Ki degerini girin (Eski: %.3f): ', Ki), 's');
+    if ~isempty(str_Ki), Ki = str2double(str_Ki); end
+    
+    str_Kd = input(sprintf('Kd degerini girin (Eski: %.3f): ', Kd), 's');
+    if ~isempty(str_Kd), Kd = str2double(str_Kd); end
+    
+    fprintf('-> Custom PID Degerleri Ayarlandi: Kp=%.3f, Ki=%.3f, Kd=%.3f\n', Kp, Ki, Kd);
+else
+    fprintf('-> Analitik PID Degerleri Kullaniliyor: Kp=%.3f, Ki=%.3f, Kd=%.3f\n', Kp, Ki, Kd);
+end
 
 max_tilt = max_tilt_deg * deg2rad;   % physical tilt limit [rad]
 

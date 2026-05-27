@@ -45,12 +45,9 @@ pos_ref_pid(:, 3) = h0;   % fixed height
 
 %% =========================================================
 %  PID PARAMETERS
-%  Output: tilt angle [rad] per meter of ball displacement
-%  Tune Kp, Ki, Kd here if response is too slow / oscillates.
+%  Using Analytical Baseline from config.txt
 %% =========================================================
-Kp = 7.0;    % proportional gain [rad/m]
-Ki = 2.0;    % integral gain     [rad/(m*s)]
-Kd = 0.9;    % derivative gain   [rad*s/m]
+% Kp, Ki, Kd are loaded via stewart_setup.m -> load_config
 
 max_tilt = 30 * deg2rad;   % physical tilt limit [rad]
 
