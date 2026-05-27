@@ -3,9 +3,10 @@ function [best_Kp, best_Ki, best_Kd] = stewart_ga_multi_seed(num_scenarios, pop_
 %  Robust Genetic Algorithm: Trains PID across multiple random wind/noise scenarios
 %  (domain randomization)
 
+config = load_config();
 if nargin < 1, num_scenarios = 100; end
-if nargin < 2, pop_size = 30; end
-if nargin < 3, generations = 50; end
+if nargin < 2, pop_size = config.ga_pop_size; end
+if nargin < 3, generations = config.ga_generations; end
 if nargin < 4, show_plot = true; end
 if nargin < 5, rng_seed = 42; end
 

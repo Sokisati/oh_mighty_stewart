@@ -52,17 +52,17 @@ for sc = 1:num_wind_modes
     fprintf('--- TRAINING PHASE ---\n');
     % GA
     fprintf('[GA] Training Robust Genetic Algorithm...\n');
-    [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, 20, 30, false, 42);
+    [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, false, 42);
     Params{2, sc} = [Kp_ga, Ki_ga, Kd_ga];
     
     % DE
     fprintf('[DE] Training Robust Differential Evolution...\n');
-    [Kp_de, Ki_de, Kd_de] = stewart_de_multi_seed(50, 20, 30, false, 42);
+    [Kp_de, Ki_de, Kd_de] = stewart_de_multi_seed(50, config.de_pop_size, config.de_generations, false, 42);
     Params{3, sc} = [Kp_de, Ki_de, Kd_de];
     
     % CMA-ES
     fprintf('[CMA-ES] Training Robust CMA-ES...\n');
-    [Kp_cmaes, Ki_cmaes, Kd_cmaes] = stewart_cmaes_multi_seed(50, 15, 30, false, 42);
+    [Kp_cmaes, Ki_cmaes, Kd_cmaes] = stewart_cmaes_multi_seed(50, config.cmaes_lambda, config.cmaes_generations, false, 42);
     Params{4, sc} = [Kp_cmaes, Ki_cmaes, Kd_cmaes];
     
     fprintf('\n--- VALIDATION PHASE (%d Seeds) ---\n', num_val);

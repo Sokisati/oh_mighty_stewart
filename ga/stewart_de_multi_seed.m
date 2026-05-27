@@ -2,9 +2,10 @@ function [best_Kp, best_Ki, best_Kd] = stewart_de_multi_seed(num_scenarios, pop_
 %% stewart_de_multi_seed.m
 %  Robust Differential Evolution (DE/rand/1/bin)
 
+config = load_config();
 if nargin < 1, num_scenarios = 100; end
-if nargin < 2, pop_size = 30; end
-if nargin < 3, generations = 50; end
+if nargin < 2, pop_size = config.de_pop_size; end
+if nargin < 3, generations = config.de_generations; end
 if nargin < 4, show_plot = true; end
 if nargin < 5, rng_seed = 42; end
 
@@ -40,8 +41,8 @@ end
 
 POP_SIZE = pop_size;         
 GENERATIONS = generations;      
-F_scale = 0.8;
-CR = 0.9;
+F_scale = config.de_F_scale;
+CR = config.de_CR;
 FAILURE_THRESHOLD = 5000;
 
 UB = [25.0, 40.0, 10.0];

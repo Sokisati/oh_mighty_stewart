@@ -2,9 +2,10 @@ function [best_Kp, best_Ki, best_Kd] = stewart_cmaes_multi_seed(num_scenarios, l
 %% stewart_cmaes_multi_seed.m
 %  Robust Covariance Matrix Adaptation Evolution Strategy (CMA-ES)
 
+config = load_config();
 if nargin < 1, num_scenarios = 100; end
-if nargin < 2, lambda_pop = 15; end
-if nargin < 3, generations = 50; end
+if nargin < 2, lambda_pop = config.cmaes_lambda; end
+if nargin < 3, generations = config.cmaes_generations; end
 if nargin < 4, show_plot = true; end
 if nargin < 5, rng_seed = 42; end
 
