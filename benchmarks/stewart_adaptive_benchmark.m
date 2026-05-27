@@ -36,6 +36,7 @@ fprintf('[+] Number of Validation Seeds per Scenario: %d\n', num_val);
 R_all = cell(2, num_wind_modes);
 F_all = cell(2, num_wind_modes);
 scores_all = cell(2, num_wind_modes);
+mrac_logs_all = cell(1, num_wind_modes);
 
 global WIND_TYPE;
 global WIND_C_RATIO;
@@ -62,12 +63,16 @@ for sc = 1:num_wind_modes
         waitbar(v/num_val, h_wait);
         
         % 1. Classic PID
-        [r, f] = run_adaptive_sim('classic', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
+        [r, f, ~] = run_adaptive_sim('classic', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res1(v, :) = r; f1(v) = f;
         
         % 2. MRAC Adaptive PID
-        [r, f] = run_adaptive_sim('mrac', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
+        [r, f, m_logs] = run_adaptive_sim('mrac', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res2(v, :) = r; f2(v) = f;
+        
+        if v == 1
+            mrac_logs_all{sc} = m_logs;
+        end
     end
     close(h_wait);
     
@@ -140,9 +145,34 @@ end
 fprintf('====================================================================================\n\n');
 
 %% =========================================================
+%  PLOT ADAPTIVE GAIN HISTORIES
+%% =========================================================
+figure('Name', 'Adaptive PID Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
+for sc = 1:num_wind_modes
+    m_logs = mrac_logs_all{sc};
+    t = m_logs.t;
+    
+    subplot(3, 1, sc);
+    plot(t, m_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
+    plot(t, m_logs.Ki, 'g', 'LineWidth', 1.5);
+    plot(t, m_logs.Kd, 'b', 'LineWidth', 1.5);
+    
+    plot([t(1) t(end)], [base_Kp base_Kp], 'r--');
+    plot([t(1) t(end)], [base_Ki base_Ki], 'g--');
+    plot([t(1) t(end)], [base_Kd base_Kd], 'b--');
+    hold off;
+    
+    title(sprintf('MRAC Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
+    xlabel('Time (s)');
+    ylabel('Gain Value');
+    legend('Kp', 'Ki', 'Kd', 'Location', 'best');
+    grid on;
+end
+
+%% =========================================================
 %  HEADLESS SIMULATION FUNCTION
 %% =========================================================
-function [res, fell_off] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
+function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
     params.dt       = dt;
     params.T_sim    = 30;
     params.g_acc    = g_acc;
@@ -154,12 +184,12 @@ function [res, fell_off] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, see
 
     if strcmp(type, 'mrac')
         params.mrac.active = true;
-        params.mrac.gamma_p = 250.0;
+        params.mrac.gamma_p = 50.0;
         params.mrac.sigma_p = 2.0;
-        params.mrac.gamma_i = 10.0;
+        params.mrac.gamma_i = 500.0;
         params.mrac.sigma_i = 1.0;
-        params.mrac.gamma_d = 50.0;
-        params.mrac.sigma_d = 1.0;
+        params.mrac.gamma_d = 100.0;
+        params.mrac.sigma_d = 2.0;
     end
 
     disturb_table = generate_disturbances(seed, params.T_sim);
@@ -208,4 +238,9 @@ function [res, fell_off] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, see
     ctrl_effort = rms(sqrt(result.pitch_act.^2 + result.roll_act.^2)) * (180/pi);
 
     res = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
+    
+    logs.t = t_vec;
+    logs.Kp = result.Kp_log;
+    logs.Ki = result.Ki_log;
+    logs.Kd = result.Kd_log;
 end

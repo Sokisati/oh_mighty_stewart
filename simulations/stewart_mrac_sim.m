@@ -70,12 +70,12 @@ sim_params.ball_y0  = 0.03;
 
 fprintf('Configuring MRAC (Mode 7) Adaptive Parameters...\n');
 sim_params.mrac.active = true;
-sim_params.mrac.gamma_p = 250.0;
+sim_params.mrac.gamma_p = 50.0;
 sim_params.mrac.sigma_p = 2.0;
-sim_params.mrac.gamma_i = 10.0;
+sim_params.mrac.gamma_i = 500.0;
 sim_params.mrac.sigma_i = 1.0;
-sim_params.mrac.gamma_d = 50.0;
-sim_params.mrac.sigma_d = 1.0;
+sim_params.mrac.gamma_d = 100.0;
+sim_params.mrac.sigma_d = 2.0;
 
 sim_result = simulate_ball(Kp, Ki, Kd, sim_params, disturb_table, noise_table);
 

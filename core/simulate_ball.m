@@ -168,22 +168,22 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
 
         % 5. Adaptive PID Updates (MRAC)
         if isfield(params, 'mrac') && params.mrac.active
-            % Energy-Coupled Adaptation
+            % True Gradient Descent MRAC Laws
             e_pos_sq = ex^2 + ey^2;
-            e_vel_sq = dex^2 + dey^2;
-            e_int_sq = int_ex^2 + int_ey^2;
+            corr_i   = ex * int_ex + ey * int_ey;
+            corr_d   = ex * dex + ey * dey;
             
-            % Use total tracking energy for all gains to prevent damping loss
-            % Scale e_vel_sq down because it's numerically much larger than e_pos_sq
-            total_energy = e_pos_sq + 0.01 * e_vel_sq;
+            % Smooth Adaptation (No IF switches to prevent chattering)
+            dKp = params.mrac.gamma_p * e_pos_sq - params.mrac.sigma_p * (Kp_eff - Kp);
+            dKi = params.mrac.gamma_i * corr_i   - params.mrac.sigma_i * (Ki_eff - Ki);
+            dKd = params.mrac.gamma_d * corr_d   - params.mrac.sigma_d * (Kd_eff - Kd);
             
-            dKp = params.mrac.gamma_p * total_energy - params.mrac.sigma_p * (Kp_eff - Kp);
-            dKi = params.mrac.gamma_i * e_int_sq     - params.mrac.sigma_i * (Ki_eff - Ki);
-            dKd = params.mrac.gamma_d * total_energy - params.mrac.sigma_d * (Kd_eff - Kd);
-            
-            % HARD LIMITS: Kp and Kd can only grow up to 2.0x their baseline
-            Kp_eff = max(Kp, min(Kp * 2.0, Kp_eff + dKp * dt));
-            Ki_eff = max(Ki, min(Ki * 2.0, Ki_eff + dKi * dt));
+            % HARD LIMITS for Aggressive Integral Adaptation:
+            % Kp is highly restricted (max 1.1x) to prevent delay margin violations
+            % Ki is allowed to grow aggressively (max 5.0x) to reject steady wind
+            % Kd is allowed to double (max 2.0x) to damp out wind turbulence
+            Kp_eff = max(Kp, min(Kp * 1.1, Kp_eff + dKp * dt));
+            Ki_eff = max(Ki, min(Ki * 5.0, Ki_eff + dKi * dt));
             Kd_eff = max(Kd, min(Kd * 2.0, Kd_eff + dKd * dt));
         end
         
