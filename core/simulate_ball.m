@@ -166,32 +166,25 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
         prev_ex = ex;
         prev_ey = ey;
 
-        % 5. Adaptive PID Updates (MRAC & Lyapunov)
+        % 5. Adaptive PID Updates (MRAC)
         if isfield(params, 'mrac') && params.mrac.active
+            % Energy-Coupled Adaptation
             e_pos_sq = ex^2 + ey^2;
             e_vel_sq = dex^2 + dey^2;
             e_int_sq = int_ex^2 + int_ey^2;
             
-            dKp = params.mrac.gamma_p * e_pos_sq - params.mrac.sigma_p * (Kp_eff - Kp);
-            dKi = params.mrac.gamma_i * e_int_sq - params.mrac.sigma_i * (Ki_eff - Ki);
-            dKd = params.mrac.gamma_d * e_vel_sq - params.mrac.sigma_d * (Kd_eff - Kd);
+            % Use total tracking energy for all gains to prevent damping loss
+            % Scale e_vel_sq down because it's numerically much larger than e_pos_sq
+            total_energy = e_pos_sq + 0.01 * e_vel_sq;
             
-            Kp_eff = max(Kp, Kp_eff + dKp * dt);
-            Ki_eff = max(Ki, Ki_eff + dKi * dt);
-            Kd_eff = max(Kd, Kd_eff + dKd * dt);
+            dKp = params.mrac.gamma_p * total_energy - params.mrac.sigma_p * (Kp_eff - Kp);
+            dKi = params.mrac.gamma_i * e_int_sq     - params.mrac.sigma_i * (Ki_eff - Ki);
+            dKd = params.mrac.gamma_d * total_energy - params.mrac.sigma_d * (Kd_eff - Kd);
             
-        elseif isfield(params, 'lyap') && params.lyap.active
-            lambda = params.lyap.lambda;
-            Sx = dex + lambda * ex;
-            Sy = dey + lambda * ey;
-            
-            dKp = params.lyap.gamma_p * (Sx * ex + Sy * ey) - params.lyap.sigma_p * (Kp_eff - Kp);
-            dKi = params.lyap.gamma_i * (Sx * int_ex + Sy * int_ey) - params.lyap.sigma_i * (Ki_eff - Ki);
-            dKd = params.lyap.gamma_d * (Sx * dex + Sy * dey) - params.lyap.sigma_d * (Kd_eff - Kd);
-            
-            Kp_eff = max(Kp, Kp_eff + dKp * dt);
-            Ki_eff = max(Ki, Ki_eff + dKi * dt);
-            Kd_eff = max(Kd, Kd_eff + dKd * dt);
+            % HARD LIMITS: Kp and Kd can only grow up to 2.0x their baseline
+            Kp_eff = max(Kp, min(Kp * 2.0, Kp_eff + dKp * dt));
+            Ki_eff = max(Ki, min(Ki * 2.0, Ki_eff + dKi * dt));
+            Kd_eff = max(Kd, min(Kd * 2.0, Kd_eff + dKd * dt));
         end
         
         Kp_log(i) = Kp_eff;
