@@ -97,7 +97,7 @@ for sc = 1:num_wind_modes
             mrac_logs_all{sc} = m_logs;
         end
     end
-    close(h_wait);
+    fprintf('\n');
 end
 
 %% =========================================================
