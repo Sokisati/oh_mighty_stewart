@@ -1,6 +1,3 @@
-%% stewart_comparative_benchmark.m
-%  Comparative Benchmark for Evolutionary Algorithms
-%  Compares GA, DE, and CMA-ES against Classic PID on unseen wind seeds.
 
 clc; close all;
 fprintf('\n====================================================\n');
@@ -9,9 +6,6 @@ fprintf('====================================================\n\n');
 
 run('stewart_setup.m');
 
-%% =========================================================
-%  WIND SCENARIOS
-%% =========================================================
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
     struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
@@ -28,7 +22,6 @@ base_Kp = config.Kp;
 base_Ki = config.Ki;
 base_Kd = config.Kd;
 
-% Storage for results: 1=Classic, 2=GA, 3=CMA-ES
 R_all = cell(3, num_wind_modes);
 F_all = cell(3, num_wind_modes);
 scores_all = cell(3, num_wind_modes);
@@ -51,12 +44,10 @@ for sc = 1:num_wind_modes
     Params{1, sc} = [base_Kp, base_Ki, base_Kd];
     
     fprintf('--- TRAINING PHASE ---\n');
-    % GA
     fprintf('[GA] Training Robust Island Genetic Algorithm...\n');
     [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, false, 42);
     Params{2, sc} = [Kp_ga, Ki_ga, Kd_ga];
     
-    % CMA-ES
     fprintf('[CMA-ES] Training Robust IPOP-CMA-ES...\n');
     [Kp_cmaes, Ki_cmaes, Kd_cmaes] = stewart_cmaes_multi_seed(50, config.cmaes_lambda, config.cmaes_generations, false, 42);
     Params{3, sc} = [Kp_cmaes, Ki_cmaes, Kd_cmaes];
@@ -80,9 +71,6 @@ for sc = 1:num_wind_modes
     end
 end
 
-%% =========================================================
-%  AGGREGATION AND REPORTING
-%% =========================================================
 w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; 
 
 for sc = 1:num_wind_modes
@@ -94,7 +82,6 @@ for sc = 1:num_wind_modes
         sprintf('3. Robust CMA-ES (%.2f, %.2f, %.2f)', Params{3, sc})
     };
     
-    % Reference metrics for score (Classic PID averages)
     R1 = R_all{1, sc}; F1 = F_all{1, sc};
     idx_success = find(F1 == 0);
     if ~isempty(idx_success), a1_ref = mean(R1(idx_success, :), 1); else, a1_ref = mean(R1, 1); end
@@ -127,7 +114,6 @@ for sc = 1:num_wind_modes
     fprintf('=========================================================================================================================================================================\n\n');
 end
 
-% Compute overall averages
 fprintf('\n====================================================================================\n');
 fprintf('                          FINAL OVERALL SUMMARY (Averaged over %d Wind Modes)\n', num_wind_modes);
 fprintf('====================================================================================\n');
@@ -145,9 +131,6 @@ for m = 1:3
 end
 fprintf('====================================================================================\n\n');
 
-%% =========================================================
-%  HEADLESS SIMULATION FUNCTION
-%% =========================================================
 function [res, fell_off] = run_headless_sim(Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
     params.dt       = dt;
     params.T_sim    = 30;

@@ -1,6 +1,3 @@
-% benchmarks/stewart_adaptive_benchmark.m
-% Comparative Benchmark for Adaptive PID Controllers
-% Compares Classic PID, MRAC Adaptive, and Lyapunov Adaptive against unseen wind seeds.
 
 clc; close all;
 fprintf('\n=================================================================\n');
@@ -9,9 +6,6 @@ fprintf('=================================================================\n\n')
 
 run('stewart_setup.m');
 
-%% =========================================================
-%  WIND SCENARIOS
-%% =========================================================
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
     struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
@@ -32,7 +26,6 @@ fprintf('[+] Base Analytical PID Gains Loaded from config.txt:\n');
 fprintf('    Kp = %.3f, Ki = %.3f, Kd = %.3f\n', base_Kp, base_Ki, base_Kd);
 fprintf('[+] Number of Validation Seeds per Scenario: %d\n', num_val);
 
-% Storage for results: 1=Classic, 2=MRAC, 3=NLPID
 R_all = cell(3, num_wind_modes);
 F_all = cell(3, num_wind_modes);
 scores_all = cell(3, num_wind_modes);
@@ -65,15 +58,12 @@ for sc = 1:num_wind_modes
             fprintf('.');
         end
         
-        % 1. Classic PID
         [r, f, ~] = run_adaptive_sim('classic', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res1(v, :) = r; f1(v) = f;
         
-        % 2. MRAC Adaptive PID
         [r, f, m_logs] = run_adaptive_sim('mrac', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res2(v, :) = r; f2(v) = f;
         
-        % 3. NLPID Adaptive PID
         [r, f, n_logs] = run_adaptive_sim('nlpid', base_Kp, base_Ki, base_Kd, seed, config.dt, config.g_acc, config.c_roll, config.R_base);
         res3(v, :) = r; f3(v) = f;
         
@@ -89,9 +79,6 @@ for sc = 1:num_wind_modes
     R_all{3, sc} = res3; F_all{3, sc} = f3;
 end
 
-%% =========================================================
-%  AGGREGATION AND REPORTING
-%% =========================================================
 w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; 
 
 for sc = 1:num_wind_modes
@@ -103,7 +90,6 @@ for sc = 1:num_wind_modes
         '3. NLPID Adaptive PID'
     };
     
-    % Reference metrics for score (Classic PID averages)
     R1 = R_all{1, sc}; F1 = F_all{1, sc};
     idx_success = find(F1 == 0);
     if ~isempty(idx_success), a1_ref = mean(R1(idx_success, :), 1); else, a1_ref = mean(R1, 1); end
@@ -136,7 +122,6 @@ for sc = 1:num_wind_modes
     fprintf('=========================================================================================================================================================================\n\n');
 end
 
-% Compute overall averages
 fprintf('\n====================================================================================\n');
 fprintf('                          FINAL OVERALL SUMMARY (Averaged over %d Wind Modes)\n', num_wind_modes);
 fprintf('====================================================================================\n');
@@ -154,10 +139,6 @@ for m = 1:3
 end
 fprintf('====================================================================================\n\n');
 
-%% =========================================================
-%  PLOT ADAPTIVE GAIN HISTORIES (Seed #1)
-%% =========================================================
-% Plot MRAC
 figure('Name', 'MRAC Gain Adaptation (Seed #1)', 'Position', [100, 100, 1200, 800]);
 for sc = 1:num_wind_modes
     m_logs = mrac_logs_all{sc};
@@ -176,7 +157,6 @@ for sc = 1:num_wind_modes
     grid on;
 end
 
-% Plot NLPID
 figure('Name', 'NLPID Gain Adaptation (Seed #1)', 'Position', [150, 150, 1200, 800]);
 for sc = 1:num_wind_modes
     n_logs = nlpid_logs_all{sc};
@@ -195,9 +175,6 @@ for sc = 1:num_wind_modes
     grid on;
 end
 
-%% =========================================================
-%  HEADLESS SIMULATION FUNCTION
-%% =========================================================
 function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
     params.dt       = dt;
     params.T_sim    = 30;

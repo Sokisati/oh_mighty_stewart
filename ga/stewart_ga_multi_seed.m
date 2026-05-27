@@ -1,8 +1,4 @@
 function [best_Kp, best_Ki, best_Kd] = stewart_ga_multi_seed(num_scenarios, pop_size, generations, show_plot, rng_seed)
-%% stewart_ga_multi_seed.m
-%  Robust Island Model Genetic Algorithm
-%  Multiple isolated populations evolve independently and exchange elites
-%  to maintain high diversity and prevent local minima.
 
 config = load_config();
 if nargin < 1, num_scenarios = 100; end
@@ -51,7 +47,6 @@ MUTATION_IMPACT = 2.5; % Increased aggressively to explore further bounds
 UB = [25.0, 40.0, 10.0];
 LB = [0.0,  0.0,  0.0];
 
-% Initialize Islands
 pop = zeros(NUM_ISLANDS, island_pop_size, 3);
 for i = 1:NUM_ISLANDS
     for j = 1:island_pop_size
@@ -74,7 +69,6 @@ if show_plot
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
-% --- Generate Fixed (Deterministic) Scenarios ---
 rng(rng_seed);
 seeds = randi([1, 100000], 1, num_scenarios);
 disturbances = cell(num_scenarios, 1);
@@ -88,7 +82,6 @@ fprintf('Generated %d fixed scenarios to create a deterministic fitness landscap
 max_tilt_rad = 30 * deg2rad;
 
 for gen = 1:generations
-    % Seeds are now fixed, no regeneration here
     flat_pop = reshape(pop, [POP_SIZE, 3]);
     flat_fit = zeros(POP_SIZE, 1);
     flat_rob = zeros(POP_SIZE, 1);
@@ -129,7 +122,6 @@ for gen = 1:generations
         new_island(1,:) = island_pop(1,:);
         new_island(2,:) = island_pop(2,:);
         
-        % More aggressive mutation rate: explores much heavier initially
         mut_rate = 0.50 * (1 - gen/generations) + 0.10;
         
         for j = 3:island_pop_size

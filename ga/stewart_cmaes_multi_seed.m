@@ -1,7 +1,4 @@
 function [global_best_Kp, global_best_Ki, global_best_Kd] = stewart_cmaes_multi_seed(num_scenarios, base_lambda_pop, max_generations, show_plot, rng_seed)
-%% stewart_cmaes_multi_seed.m
-%  Robust IPOP-CMA-ES (Increasing Population Covariance Matrix Adaptation)
-%  Automatically restarts with doubled population size if stuck in a local minimum.
 
 config = load_config();
 if nargin < 1, num_scenarios = 100; end
@@ -61,7 +58,6 @@ if show_plot
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
-% --- Generate Fixed (Deterministic) Scenarios ---
 rng(rng_seed);
 seeds = randi([1, 100000], 1, num_scenarios);
 disturbances = cell(num_scenarios, 1);
@@ -104,7 +100,6 @@ while gen <= max_generations
     last_best_fit = inf;
 
     while gen <= max_generations
-        % Seeds are now fixed, no regeneration here
         pop = zeros(N, lambda_pop);
         for k = 1:lambda_pop
             pop(:, k) = xmean + sigma * B * (D .* randn(N,1));
@@ -158,7 +153,6 @@ while gen <= max_generations
         
         gen = gen + 1;
         
-        % Check Restart Conditions
         if abs(last_best_fit - best_fit) < 1e-3
             stagnation_counter = stagnation_counter + 1;
         else
@@ -173,7 +167,6 @@ while gen <= max_generations
             break; % Break inner loop to trigger restart
         end
         
-        % Update CMA-ES Parameters
         xold = xmean;
         xmean = pop(:, 1:mu) * weights;
         

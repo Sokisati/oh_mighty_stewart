@@ -1,6 +1,4 @@
 function F_table = generate_disturbances(seed, T_sim, params)
-% GENERATE_DISTURBANCES Wrapper function to select between Chaotic or Realistic wind.
-% The wind type is determined by the global variable WIND_TYPE.
 
     global WIND_TYPE;
     global WIND_C_RATIO;

@@ -1,10 +1,3 @@
-%% stewart_ultimate_benchmark.m
-%  Ultimate Benchmark for Stewart Platform
-%  Compares 4 methods across 3 wind scenarios (100 unseen seeds each):
-%  1. Classic PID (Fixed, Analytic Baseline)
-%  2. NLPID Adaptive PID (Adaptive, Analytic Baseline)
-%  3. Genetic PID (Fixed, Tuned by Island GA)
-%  4. Genetic Adaptive PID (Adaptive, Tuned by Island GA)
 
 clc; close all;
 fprintf('\n====================================================\n');
@@ -13,9 +6,6 @@ fprintf('====================================================\n\n');
 
 run('stewart_setup.m');
 
-%% =========================================================
-%  WIND SCENARIOS
-%% =========================================================
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
     struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
@@ -32,7 +22,6 @@ base_Kp = config.Kp;
 base_Ki = config.Ki;
 base_Kd = config.Kd;
 
-% Storage for results: 1=Classic, 2=MRAC, 3=GA, 4=GA-MRAC
 R_all = cell(4, num_wind_modes);
 F_all = cell(4, num_wind_modes);
 scores_all = cell(4, num_wind_modes);
@@ -74,25 +63,20 @@ for sc = 1:num_wind_modes
             fprintf('.');
         end
         
-        % 1. Classic PID (Fixed, Analytic)
         p = Params{1, sc};
         [r, f, ~] = run_adaptive_sim('classic', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{1, sc}(v,:) = r; F_all{1, sc}(v) = f;
         
-        % 2. NLPID Adaptive PID (Analytic Baseline)
         [r, f, ~] = run_adaptive_sim('nlpid', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{2, sc}(v,:) = r; F_all{2, sc}(v) = f;
         
-        % 3. Genetic PID (Fixed, Tuned)
         p_ga = Params{2, sc};
         [r, f, ~] = run_adaptive_sim('classic', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{3, sc}(v,:) = r; F_all{3, sc}(v) = f;
         
-        % 4. Genetic Adaptive PID (NLPID, Tuned Baseline)
         [r, f, n_logs] = run_adaptive_sim('nlpid', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
         R_all{4, sc}(v,:) = r; F_all{4, sc}(v) = f;
         
-        % Log NLPID gain changes for the first seed of GA-NLPID
         if v == 1
             nlpid_logs_all{sc} = n_logs;
         end
@@ -100,9 +84,6 @@ for sc = 1:num_wind_modes
     fprintf('\n');
 end
 
-%% =========================================================
-%  AGGREGATION AND REPORTING
-%% =========================================================
 w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; 
 
 for sc = 1:num_wind_modes
@@ -115,7 +96,6 @@ for sc = 1:num_wind_modes
         sprintf('4. Gen-Adapt NLPID (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3))
     };
     
-    % Reference metrics for score (Classic PID averages)
     R1 = R_all{1, sc}; F1 = F_all{1, sc};
     idx_success = find(F1 == 0);
     if ~isempty(idx_success), a1_ref = mean(R1(idx_success, :), 1); else, a1_ref = mean(R1, 1); end
@@ -148,7 +128,6 @@ for sc = 1:num_wind_modes
     fprintf('=========================================================================================================================================================================\n\n');
 end
 
-% Compute overall averages
 fprintf('\n====================================================================================\n');
 fprintf('                          FINAL OVERALL SUMMARY (Averaged over %d Wind Modes)\n', num_wind_modes);
 fprintf('====================================================================================\n');
@@ -166,9 +145,6 @@ for m = 1:4
 end
 fprintf('====================================================================================\n\n');
 
-%% =========================================================
-%  PLOT GA-NLPID GAIN HISTORIES
-%% =========================================================
 figure('Name', 'Genetic Adaptive NLPID Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
 for sc = 1:num_wind_modes
     n_logs = nlpid_logs_all{sc};
@@ -195,9 +171,6 @@ for sc = 1:num_wind_modes
     grid on;
 end
 
-%% =========================================================
-%  HEADLESS SIMULATION FUNCTION
-%% =========================================================
 function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
     params.dt       = dt;
     params.T_sim    = 30;

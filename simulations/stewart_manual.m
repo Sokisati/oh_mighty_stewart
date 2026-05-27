@@ -1,20 +1,9 @@
-%% stewart_manual.m
-%  Stewart Platform - Interactive Manual Control (Mode 4)
-%
-%  ARROWS : hold to tilt platform (fast tilt)
-%  W/S    : increase / decrease arrow key sensitivity
-%  A/D    : fine roll adjustment
-%  R      : reset ball to center
-%  Close window to exit
 
-%% Load base parameters
 run('stewart_setup.m');
 config = load_config();
 if isfield(config, 'manual_sens_step'), sens_step = config.manual_sens_step; else, sens_step = 0.2; end
 if isfield(config, 'manual_sens_init'), sens_init = config.manual_sens_init; else, sens_init = 1.0; end
 
-%% Game state
-% Ball states: 0 = on plate | 1 = free fall | 2 = on floor (waiting reset)
 ball_x  = 0;  ball_y  = 0;
 ball_vx = 0;  ball_vy = 0;
 ball_state   = 0;
@@ -32,7 +21,6 @@ rate_fast = 20 * deg2rad;   % Arrow keys [rad/s]
 rate_fine =  3 * deg2rad;   % A/D fine roll [rad/s]
 t_survived = 0;
 
-%% Figure
 fig = figure('Name', 'Stewart Platform - Manual Control  [Arrows=tilt | W/S=sensitivity | A/D=roll | R=reset]', ...
     'NumberTitle','off','Color',[0.07 0.07 0.09], ...
     'Position',[80 40 1100 740]);
@@ -45,7 +33,6 @@ fig.UserData = struct( ...
 set(fig,'KeyPressFcn',  @kp_cb);
 set(fig,'KeyReleaseFcn',@kr_cb);
 
-%% Axes
 ax = axes('Parent',fig,'Color',[0.05 0.05 0.07], ...
     'XColor',[0.55 0.55 0.55],'YColor',[0.55 0.55 0.55],'ZColor',[0.55 0.55 0.55], ...
     'GridColor',[0.28 0.28 0.28],'GridAlpha',0.4);
@@ -60,23 +47,19 @@ zlabel(ax,'Z [m]','Color',[0.6 0.6 0.6]);
 title(ax,'MANUAL CONTROL  |  Arrows = tilt  |  W/S = sensitivity  |  A/D = fine roll  |  R = reset', ...
     'Color',[0.92 0.92 0.92],'FontSize',11,'FontWeight','bold');
 
-%% Geometry
 n_ring  = 20;
 theta_c = linspace(0,2*pi,n_ring)';
 cos_tc  = cos(theta_c);
 sin_tc  = sin(theta_c);
 
-% Base plate (static)
 fill3(ax,R_base*cos_tc',R_base*sin_tc',zeros(1,n_ring), ...
     [0.28 0.28 0.38],'FaceAlpha',0.55,'EdgeColor',[0.5 0.5 0.65],'LineWidth',1.5);
 plot3(ax,P_base(:,1),P_base(:,2),P_base(:,3),'o', ...
     'Color',[0.8 0.8 0.8],'MarkerSize',6,'MarkerFaceColor',[0.45 0.45 0.55]);
 
-% Target crosshair
 plot3(ax,0,0,h0+0.001,'+','Color',[0.2 1.0 0.3],'MarkerSize',20,'LineWidth',2.5);
 plot3(ax,0,0,h0+0.001,'o','Color',[0.2 1.0 0.3],'MarkerSize',8,'LineWidth',1.5);
 
-% Top plate (dynamic)
 ring_w0 = (eye(3)*(R_top*[cos_tc,sin_tc,zeros(n_ring,1)]') + [0;0;h0])';
 h_top   = fill3(ax,ring_w0(:,1)',ring_w0(:,2)',ring_w0(:,3)', ...
     [0.18 0.42 0.82],'FaceAlpha',0.80,'EdgeColor',[0.38 0.62 1.0],'LineWidth',2);
@@ -101,22 +84,18 @@ for k = 1:6
 end
 h_ctr = plot3(ax,0,0,h0,'o','Color',[1 0.8 0.2],'MarkerSize',7,'MarkerFaceColor',[1 0.8 0.2]);
 
-% Ball
 [sp_x,sp_y,sp_z] = sphere(6);
 ball_surf = surf(ax, sp_x*r_ball, sp_y*r_ball, sp_z*r_ball+h0+r_ball, ...
     'FaceColor',[0.84 0.84 0.92],'EdgeColor','none','FaceLighting','none');
 
-% Ball shadow on base
 h_shadow = plot3(ax,0,0,0.001,'o','Color',[0.18 0.18 0.24], ...
     'MarkerSize',7,'MarkerFaceColor',[0.16 0.16 0.20]);
 
-% Trail
 trail_len = 12;
 trail_buf = zeros(trail_len,3);
 h_trail   = plot3(ax,trail_buf(:,1),trail_buf(:,2),trail_buf(:,3), ...
     '-','Color',[0.3 0.9 1.0 0.65],'LineWidth',1.5);
 
-%% HUD
 hx = -lim*0.90;  hy = -lim*0.90;
 t_hud1  = text(ax,hx,hy,h0*2.45,'Pitch: +0.0   Roll: +0.0 deg', ...
     'Color',[0.92 0.88 0.20],'FontSize',10,'FontWeight','bold');
@@ -141,7 +120,6 @@ t_wind = text(ax,hx,hy,h0*1.98, wind_disp, ...
 t_status= text(ax,0,0,h0*2.45,'GAME ON', ...
     'Color',[0.2 1.0 0.3],'FontSize',14,'FontWeight','bold','HorizontalAlignment','center');
 
-%% ---- GAME LOOP ----
 dt           = 0.010;
 RENDER_EVERY = 3;
 step         = 0;
@@ -156,7 +134,6 @@ while ishandle(fig)
         break;
     end
 
-    %-- Manual reset --
     if ud.reset
         ball_x=0; ball_y=0; ball_vx=0; ball_vy=0;
         pitch_cmd=0; roll_cmd=0; heave_cmd=h0; heave_vel=0;
@@ -165,19 +142,16 @@ while ishandle(fig)
         fig.UserData = ud;
     end
 
-    %-- Arrow keys: fast rate --
     df = rate_fast * ud.sens_mult * dt;
     if ud.up,    pitch_cmd = pitch_cmd - df; end
     if ud.down,  pitch_cmd = pitch_cmd + df; end
     if ud.left,  roll_cmd  = roll_cmd  + df; end   % Swapped direction
     if ud.right, roll_cmd  = roll_cmd  - df; end   % Swapped direction
 
-    %-- Fixed heave --
     heave_prev = heave_cmd;
     heave_vel_prev = heave_vel;
     heave_vel = 0;
 
-    %-- A/D: fine roll --
     ds = rate_fine * dt;
     if ud.a, roll_cmd  = roll_cmd  + ds; end
     if ud.d, roll_cmd  = roll_cmd  - ds; end
@@ -185,12 +159,10 @@ while ishandle(fig)
     pitch_cmd = max(-max_tilt, min(max_tilt, pitch_cmd));
     roll_cmd  = max(-max_tilt, min(max_tilt, roll_cmd));
 
-    %-- Rotation matrix --
     Rx = [1,0,0; 0,cos(roll_cmd),-sin(roll_cmd); 0,sin(roll_cmd),cos(roll_cmd)];
     Ry = [cos(pitch_cmd),0,sin(pitch_cmd); 0,1,0; -sin(pitch_cmd),0,cos(pitch_cmd)];
     R  = Ry*Rx;
 
-    %-- Ball physics state machine --
     now = toc;
 
     if ball_state == 0   %--- ON PLATE ---
@@ -202,7 +174,6 @@ while ishandle(fig)
         ball_x  = ball_x  + ball_vx*dt;
         ball_y  = ball_y  + ball_vy*dt;
 
-        % Check edge exit
         if norm([ball_x,ball_y]) > r_limit
             fall_pos     = R*[ball_x;ball_y;r_ball] + [0;0;heave_cmd];
             fall_vel     = R*[ball_vx;ball_vy;0] + [0;0;heave_vel];
@@ -210,11 +181,8 @@ while ishandle(fig)
             ball_state   = 1;
         end
 
-        % Check vertical separation: N = m*(g + a_plate) < 0 => ball lifts off
-        % Platform acceleration (discrete)
         heave_acc = (heave_vel - heave_vel_prev) / dt;
         if heave_acc < -g_acc
-            % Ball detaches! It keeps the PREVIOUS frame's velocity
             fall_pos     = R*[ball_x;ball_y;r_ball] + [0;0;heave_cmd];
             fall_vel     = R*[ball_vx;ball_vy;0] + [0;0;heave_vel_prev];
             t_fall_start = now;
@@ -225,16 +193,13 @@ while ishandle(fig)
         t_fall = now - t_fall_start;
         bw_fall = fall_pos + fall_vel*t_fall + [0;0;-0.5*g_acc*t_fall^2];
 
-        % Check re-landing on plate (ball bottom touches plate surface)
         plate_z = heave_cmd;   % plate surface world-z (approx, ignoring tilt at center)
         ball_bottom_z = bw_fall(3) - r_ball;
         ball_vel_now = fall_vel + [0;0;-g_acc*t_fall];
 
         if ball_bottom_z <= plate_z && ball_vel_now(3) <= heave_vel
-            % Transform back to plate frame
             bp = R' * (bw_fall - [0;0;heave_cmd]);
             if norm(bp(1:2)) < r_limit
-                % Re-land on plate!
                 ball_x  = bp(1);
                 ball_y  = bp(2);
                 bv_plate = R' * (ball_vel_now - [0;0;heave_vel]);
@@ -244,7 +209,6 @@ while ishandle(fig)
             end
         end
 
-        % Check floor
         if ball_state == 1 && bw_fall(3) <= r_ball
             ball_state  = 2;
             t_floor_hit = now;
@@ -258,16 +222,13 @@ while ishandle(fig)
         end
     end
 
-    %-- Render --
     step = step + 1;
     if mod(step, RENDER_EVERY) ~= 0, continue; end
     if ~ishandle(fig), break; end
 
-    % Top ring
     rw = (R*(R_top*[cos_tc,sin_tc,zeros(n_ring,1)]') + [0;0;heave_cmd])';
     set(h_top,'XData',rw(:,1)','YData',rw(:,2)','ZData',rw(:,3)');
 
-    % Top attachment + legs
     Pt = (R*P_top_b' + [0;0;heave_cmd])';
     set(h_top_pts,'XData',Pt(:,1),'YData',Pt(:,2),'ZData',Pt(:,3));
     for k = 1:6
@@ -277,7 +238,6 @@ while ishandle(fig)
     end
     set(h_ctr,'ZData',heave_cmd);
 
-    % Ball world position depending on state
     if ball_state == 0
         bw = R*[ball_x;ball_y;r_ball] + [0;0;heave_cmd];
         ball_col = [0.84 0.84 0.92];
@@ -309,7 +269,6 @@ while ishandle(fig)
     set(h_trail,'XData',trail_buf(:,1),'YData',trail_buf(:,2), ...
         'ZData',trail_buf(:,3),'Color',tc);
 
-    % HUD
     set(t_hud1,'String',sprintf('Pitch: %+.1f   Roll: %+.1f   Sens: %.1fx', ...
         pitch_cmd/deg2rad, roll_cmd/deg2rad, ud.sens_mult));
     set(t_hud2,'String',sprintf('Ball: (%.1f, %.1f) cm', ball_x*100, ball_y*100));
@@ -325,7 +284,6 @@ while ishandle(fig)
 
     drawnow limitrate;
 
-    % Real-time sync: only pause when significantly ahead (avoids Windows 15ms granularity stutter)
     slack = step*dt - toc;
     if slack > 0.040
         pause(slack - 0.015);
@@ -334,7 +292,6 @@ end
 
 fprintf('Manual control session ended.\n');
 
-%% ---- Local callbacks ----
 function kp_cb(src, evt)
     ud = src.UserData;
     switch evt.Key

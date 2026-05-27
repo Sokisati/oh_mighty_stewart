@@ -1,7 +1,3 @@
-%% 
-%% RUN_ME.m
-%  ============================================================
-%  STEWART PLATFORM - MAIN ENTRY POINT
 
 clc;
 fprintf('\n');
@@ -10,14 +6,9 @@ fprintf('       STEWART PLATFORM SIMULATION\n');
 fprintf('       6-Leg Gough-Stewart Type\n');
 fprintf('================================================\n\n');
 
-% Add this folder to the MATLAB path
 this_dir = fileparts(mfilename('fullpath'));
 addpath(genpath(this_dir));
 cd(this_dir);
-%% 
-%% RUN_ME.m
-%  ============================================================
-%  STEWART PLATFORM - MAIN ENTRY POINT
 
 clc;
 fprintf('\n');
@@ -26,12 +17,10 @@ fprintf('       STEWART PLATFORM SIMULATION\n');
 fprintf('       6-Leg Gough-Stewart Type\n');
 fprintf('================================================\n\n');
 
-% Add this folder to the MATLAB path
 this_dir = fileparts(mfilename('fullpath'));
 addpath(genpath(this_dir));
 cd(this_dir);
 
-%% Mode selection
 fprintf('Run mode:\n');
 fprintf('  [1] PID Ball Balancing      \n');
 fprintf('  [2] Manual Control          \n');
@@ -44,9 +33,7 @@ fprintf('  [7] Ultimate Benchmark      \n\n');
 choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
-% If not running manual mode, benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
 if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '7')
-    % Default Classic Scenario ratios (loaded from config.txt)
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
     classic_r_ratio = config.classic_r_ratio;

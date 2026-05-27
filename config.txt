@@ -1,21 +1,10 @@
-# =========================================================================
-# STEWART PLATFORM - CENTRAL CONFIGURATION FILE (config.txt)
-# All physical, geometric, PID, and actuator parameters are defined here.
-# Comments start with '#' or '%' and are completely ignored by the loader.
-# =========================================================================
 
-# -------------------------------------------------------------------------
-# GEOMETRIC PARAMETERS
-# -------------------------------------------------------------------------
 R_base       = 0.20     # Base plate radius [m]
 R_top        = 0.12     # Top plate radius [m]
 h0           = 0.20     # Home position height (base to top) [m]
 alpha_b_deg  = 0.0      # Base cluster separation angle [degrees]
 alpha_t_deg  = 20.0     # Top cluster spread angle [degrees]
 
-# -------------------------------------------------------------------------
-# PHYSICAL PARAMETERS
-# -------------------------------------------------------------------------
 rho          = 7850     # Steel density [kg/m^3]
 t_plt        = 0.006    # Plate thickness [m]
 r_out        = 0.010    # Piston outer radius [m]
@@ -24,40 +13,23 @@ g_acc        = 9.81     # Gravity acceleration [m/s^2]
 r_ball       = 0.013    # Ball radius [m] (Volume reduced from original 15mm -> 13mm)
 c_roll       = 0.8      # Rolling damping [1/s]
 
-# -------------------------------------------------------------------------
-# ACTUATOR & MOTOR PARAMETERS
-# -------------------------------------------------------------------------
 delay_sec    = 0.04    # Actuator loop delay [seconds] (sensor latency + servo time)
 slew_rate_deg = 250.0   # Maximum platform angular velocity [degrees/second]
 max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
 
-# -------------------------------------------------------------------------
-# DEFAULT/CLASSIC PID GAINS
-# PID CONTROLLER PARAMETERS (Analytical Pole Placement Baseline)
-# Calculated for bandwidth wn=7.5, zeta=0.8, p3=0.1
-# -------------------------------------------------------------------------
 Kp = 8.20
 Ki = 0.80
 Kd = 1.722
 
-# -------------------------------------------------------------------------
-# SIMULATION PARAMETERS
-# -------------------------------------------------------------------------
 dt           = 0.02     # Time step [seconds] (100 Hz simulation for stability)
 T_sim        = 30.0     # Simulation duration [seconds]
 
-# -------------------------------------------------------------------------
-# REALISTIC WIND PARAMETERS
-# -------------------------------------------------------------------------
 real_min_interval = 0.28   # Minimum interval between kicks [seconds]
 real_max_interval = 0.36   # Maximum interval between kicks [seconds]
 real_min_force    = 0.30   # Minimum kick magnitude/force [m/s]
 real_max_force    = 0.35   # Maximum kick magnitude/force [m/s]
 real_angle_spread = 10.0   # Angular standard deviation around base wind angle [degrees]
 
-# -------------------------------------------------------------------------
-# CHAOTIC WIND PARAMETERS
-# -------------------------------------------------------------------------
 chao_min_interval = 1.8    # Minimum interval between chaotic kicks [seconds]
 chao_max_interval = 3.0    # Maximum interval between chaotic kicks [seconds]
 chao_min_force    = 0.45   # Minimum chaotic kick magnitude/force [m/s]
@@ -66,28 +38,16 @@ chao_angle_drift_speed = 25.0 # Speed of dominant angle rotation [degrees/second
 chao_angle_spread = 30.0   # Angular standard deviation of wind direction [degrees]
 chao_anti_cancel_deg = 45.0 # Anti-cancellation angle margin to avoid opposite kicks [degrees]
 
-# -------------------------------------------------------------------------
-# SENSOR NOISE PARAMETERS
-# -------------------------------------------------------------------------
 noise_sigma_white = 0.00002 # High frequency camera pixel jitter standard deviation [m]
 noise_sigma_rw    = 0.00001 # Low frequency sensor drift (random walk) step standard deviation [m]
 noise_spike_prob  = 0.0001  # Probability of a camera reading spike (outlier) per step
 noise_spike_mag   = 0.0001  # Maximum amplitude of reading spikes [m]
 
-# -------------------------------------------------------------------------
-# CLASSIC WIND SCENARIO RATIOS (for RUN_ME.m simulation)
-# -------------------------------------------------------------------------
 classic_c_ratio   = 0.6    # Default chaotic wind blend ratio
 classic_r_ratio   = 1.0    # Default realistic wind blend ratio
 
-# -------------------------------------------------------------------------
-# BENCHMARK & PERFORMANCE PARAMETERS
-# -------------------------------------------------------------------------
 drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negative score to prioritize safety)
 
-# -------------------------------------------------------------------------
-# OPTIMIZER PARAMETERS (GA, DE, CMA-ES)
-# -------------------------------------------------------------------------
 ga_pop_size       = 60    # Population size for GA
 ga_generations    = 120   # Number of generations for GA
 
@@ -95,8 +55,5 @@ ga_generations    = 120   # Number of generations for GA
 cmaes_lambda      = 40    # Offspring (population) size for CMA-ES
 cmaes_generations = 120   # Number of generations for CMA-ES
 
-# -------------------------------------------------------------------------
-# MANUAL MODE PARAMETERS
-# -------------------------------------------------------------------------
 manual_sens_init  = 1.0   # Initial sensitivity multiplier for manual mode
 manual_sens_step  = 0.1   # Sensitivity step size for W/S keys

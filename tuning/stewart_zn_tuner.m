@@ -1,11 +1,6 @@
-% stewart_zn_tuner.m
-% Automates Ziegler-Nichols tuning for the Stewart Platform
-% Uses binary search to find Ultimate Gain (Ku) and Ultimate Period (Tu).
-% Plots the constant oscillation for visual verification.
 
 clc; close all;
 
-% Add core folder to path
 this_dir = fileparts(mfilename('fullpath'));
 addpath(genpath(fullfile(this_dir, '..', 'core')));
 addpath(genpath(fullfile(this_dir, '..', 'environment')));
@@ -14,7 +9,6 @@ fprintf('========================================================\n');
 fprintf('       ZIEGLER-NICHOLS OTONOM TUNING MODÜLÜ\n');
 fprintf('========================================================\n\n');
 
-%% 1. Fiziksel Parametreler (config.txt'den yüklenir)
 conf = load_config();
 
 params.dt       = conf.dt;
@@ -26,15 +20,12 @@ params.max_tilt = conf.max_tilt_deg * (pi / 180);
 params.delay_sec = conf.delay_sec;
 params.slew_rate = conf.slew_rate_deg * (pi / 180);
 
-% Z-N testi için topu merkez dışından başlat
 params.ball_x0 = 0.05; 
 params.ball_y0 = 0.0;
 
-% Rüzgar ve gürültü YOK
 disturb_table = [];
 noise_table   = [];
 
-%% 2. Binary Search ile Ku (Ultimate Gain) Bulma
 Kp_low = 0.1;
 Kp_high = 25.0; % Daha hızlı motorlar için sınır yükseltildi
 max_iters = 25;
@@ -49,55 +40,43 @@ best_idx_peaks = [];
 for iter = 1:max_iters
     Kp_test = (Kp_low + Kp_high) / 2;
     
-    % Z-N Kuralları: Sadece Oransal (P) kontrol devrede
     Ki_test = 0;
     Kd_test = 0;
     
     res = simulate_ball(Kp_test, Ki_test, Kd_test, params, disturb_table, noise_table);
     
     if res.fell_off
-        % Top düştüyse sistem bariz şekilde kararsızdır
         fprintf('Iter %2d | Kp = %6.3f | SONUÇ: Düştü (Kararsız) -> Kp azaltılıyor\n', iter, Kp_test);
         Kp_high = Kp_test;
         continue;
     end
     
-    % Top düşmediyse salınım genliğini (tepe noktalarını) analiz et
-    % 2D radyal uzaklık kullan: sqrt(x^2 + y^2) — tek eksen analizinden daha güvenilir
     r_pos = sqrt(res.ball_x.^2 + res.ball_y.^2);
     
-    % Radyal uzaklığın tepe noktalarını bul (her iki yöndeki salınımı yakalar)
     idx_peaks = find(r_pos(2:end-1) > r_pos(1:end-2) & r_pos(2:end-1) > r_pos(3:end)) + 1;
     
-    % Sadece 2. saniyeden sonraki tepelere bak (geçici başlangıç dinamiklerini atla)
     t_peaks = res.t_vec(idx_peaks);
     valid_mask = t_peaks > 2.0;
     idx_peaks = idx_peaks(valid_mask);
     t_peaks = t_peaks(valid_mask);
     
     if length(idx_peaks) < 5
-        % Yeterince salınım yok, sistem çok sönümlü
         fprintf('Iter %2d | Kp = %6.3f | SONUÇ: Aşırı Sönümlü (Salınım yok) -> Kp artırılıyor\n', iter, Kp_test);
         Kp_low = Kp_test;
         continue;
     end
     
-    % Son 4 tepeden genlik değişimini hesapla (daha güvenilir istatistik)
     peaks_amp = r_pos(idx_peaks(end-3:end));
-    % Lineer regresyon ile büyüme trendi: pozitif eğim = büyüyor, negatif = sönümleniyor
     t_local = (1:4)';
     slope = (t_local' * peaks_amp - mean(t_local) * sum(peaks_amp)) / (t_local' * t_local - 4 * mean(t_local)^2);
     norm_slope = slope / mean(peaks_amp); % normalize edilmiş eğim
     
-    % Periyot: son birkaç tepe arasındaki ortalama aralık
     Tu_est = mean(diff(t_peaks(end-3:end)));
     
-    % Tolerans: normalize eğim |< 0.01/s (yaklaşık sabit genlik)
     tol = 0.015;
     if norm_slope > tol
         fprintf('Iter %2d | Kp = %6.3f | SONUÇ: Salınım Büyüyor (slope=%.4f) -> Kp azaltılıyor\n', iter, Kp_test, norm_slope);
         Kp_high = Kp_test;
-        % Ku = büyümeye geçiş noktası (üst sınır), gerçek Ku buraya yakın
         Ku = Kp_test;
         Tu = Tu_est;
         best_res = res;
@@ -105,9 +84,7 @@ for iter = 1:max_iters
     elseif norm_slope < -tol
         fprintf('Iter %2d | Kp = %6.3f | SONUÇ: Sönümleniyor (slope=%.4f) -> Kp artırılıyor\n', iter, Kp_test, norm_slope);
         Kp_low = Kp_test;
-        % Sönümlenme tarafında Ku'yu güncelleme — sadece büyüme sınırını tut
         if Ku == 0
-            % Henüz büyüme görülmediyse yine de kaydet (başlangıç için)
             best_res = res;
             best_idx_peaks = idx_peaks;
         end
@@ -129,15 +106,12 @@ for iter = 1:max_iters
     end
 end
 
-%% 3. Görselleştirme (Plotting) ve 3D Simülasyon
 if ~isempty(best_res)
     r_plot = sqrt(best_res.ball_x.^2 + best_res.ball_y.^2) * 100; % cm
     fig = figure('Name', 'Ziegler-Nichols Kararlılık Sınırı', 'Position', [100, 100, 900, 500], 'Color', 'w');
     
-    % Ana Başlık (Siyah Renk)
     sgtitle(sprintf('Ziegler-Nichols Yöntemi: Sabit Genlikli Salınım Analizi\nBulunan Kritik Kazanç (Ku) = %.3f, Kritik Periyot (Tu) = %.3f s', Ku, Tu), 'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k');
 
-    % Alt Grafik 1: Eksenler
     ax1 = subplot(2,1,1);
     plot(ax1, best_res.t_vec, best_res.ball_x * 100, '-', 'Color', [0 0.447 0.741], 'LineWidth', 2.0); hold(ax1, 'on');
     plot(ax1, best_res.t_vec, best_res.ball_y * 100, '-', 'Color', [0.850 0.325 0.098], 'LineWidth', 2.0);
@@ -149,12 +123,10 @@ if ~isempty(best_res)
     grid(ax1, 'on');
     set(ax1, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
     
-    % Alt Grafik 2: Radyal Uzaklık ve Tepeler
     ax2 = subplot(2,1,2);
     plot(ax2, best_res.t_vec, r_plot, '-', 'Color', [0.466 0.674 0.188], 'LineWidth', 2.0); hold(ax2, 'on');
     plot(ax2, best_res.t_vec(best_idx_peaks), r_plot(best_idx_peaks), 'ro', 'MarkerFaceColor', 'r', 'MarkerSize', 6);
     
-    % Tepe noktaları arasına yatay çizgi
     mean_amp = mean(r_plot(best_idx_peaks));
     yline(ax2, mean_amp, 'b--', 'LineWidth', 1.5, 'DisplayName', 'Ortalama Salınım Genliği');
     
@@ -165,18 +137,15 @@ if ~isempty(best_res)
     grid(ax2, 'on');
     set(ax2, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
     
-    % Bilgi kutusu
     dim = [0.15 0.01 0.7 0.06];
     annotation('textbox', dim, 'String', sprintf('Not: Kp = %.3f kazanç değerinde, sönümlenmeyen veya büyümeyen (marjinal kararlı) sabit genlikli salınımlar elde edilmiştir.', Ku), 'FitBoxToText', 'on', 'BackgroundColor', [0.95 0.95 0.95], 'EdgeColor', 'k', 'Color', 'k', 'FontSize', 10, 'HorizontalAlignment', 'center');
 
     drawnow;
     
-    % 3D Görselleştirme (Simülasyon)
     fprintf('\n[+] Kp = %.3f değerindeki sabit salınımlar 3D olarak görselleştiriliyor...\n', Ku);
     visualize_stewart(best_res, Ku, 0, 0, []);
 end
 
-%% 4. PID Parametrelerini Hesaplama ve Konsola Yazdırma
 fprintf('\n========================================================\n');
 fprintf('  SİSTEMİN FİZİKSEL LİMİTLERİ (Ku ve Tu)\n');
 fprintf('--------------------------------------------------------\n');
@@ -184,22 +153,18 @@ fprintf(' Ultimate Gain (Ku)   : %.3f\n', Ku);
 fprintf(' Ultimate Period (Tu) : %.3f saniye\n', Tu);
 fprintf('========================================================\n\n');
 
-% Z-N Klasik PID
 zn_Kp = 0.6 * Ku;
 zn_Ki = 1.2 * Ku / Tu;
 zn_Kd = 0.075 * Ku * Tu;
 
-% Pessen Integral
 pessen_Kp = 0.7 * Ku;
 pessen_Ki = 1.75 * Ku / Tu;
 pessen_Kd = 0.105 * Ku * Tu;
 
-% Biraz Sönümlü
 so_Kp = 0.33 * Ku;
 so_Ki = 0.66 * Ku / Tu;
 so_Kd = 0.11 * Ku * Tu;
 
-% Overshootsuz
 no_Kp = 0.2 * Ku;
 no_Ki = 0.4 * Ku / Tu;
 no_Kd = 0.066 * Ku * Tu;

@@ -1,6 +1,4 @@
 function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0, r_limit, g_acc, c_roll, max_tilt, disturbances, noises, ctrl_lambda)
-% EVALUATE_FITNESS_ROBUST  Multi-objective fitness across multiple wind/noise scenarios.
-%   Uses the exact Ultimate Benchmark scoring formula to train the GA!
 
     if nargin < 9 || isempty(ctrl_lambda), ctrl_lambda = 0; end
 
@@ -19,7 +17,6 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
     params.ball_x0  = 0.05;
     params.ball_y0  = 0.03;
 
-    % No Gain Scheduling (plain PID)
     params.gs_alpha_p = 0;
     params.gs_alpha_i = 0;
     params.gs_alpha_d = 0;
@@ -27,7 +24,6 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
     num_scenarios = length(disturbances);
     has_drop = false;
     
-    % Classic PID Reference Values (Averaged over 100 seeds)
     ref_metrics = [0.170, 0.28, 2.088, 1.748, 6.08, 11.752];
     w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; % Benchmark weights
 
@@ -43,17 +39,12 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
             num_drops = num_drops + 1;
             t_drop = result.t_vec(end);
             
-            % Benchmark (Mod 10) Uyumlu Düşme Cebi:
-            % Benchmarkta düşme -20 puan (config.drop_penalty).
-            % Unclipped Cost sistemimizde 2.2 değeri -20 puana eşdeğerdir.
-            % Zaman gradyanı ekleyerek (hayatta kaldıkça maliyeti hafifleterek) öğrenmeyi sağlarız.
             costs(s) = 2.5 + (30.0 - t_drop) * 0.05; 
             
             human_scores(s) = config.drop_penalty;
             continue;
         end
         
-        % Calculate metrics exactly like the benchmark
         ball_x = result.ball_x;
         ball_y = result.ball_y;
         t_vec  = result.t_vec;
@@ -61,7 +52,6 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         d0 = dist_cm(1);
         if d0 == 0, d0 = 0.001; end
 
-        % 1. Rise Time
         idx_90 = find(dist_cm <= 0.9*d0, 1, 'first');
         idx_10 = find(dist_cm <= 0.1*d0, 1, 'first');
         if ~isempty(idx_90) && ~isempty(idx_10)
@@ -70,7 +60,6 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
             rise_time = params.T_sim;
         end
 
-        % 2. Settling Time
         idx_settled = find(dist_cm <= 1.0, 1, 'first');
         if ~isempty(idx_settled)
             settling_time = t_vec(idx_settled);
@@ -78,7 +67,6 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
             settling_time = params.T_sim;
         end
 
-        % 3. Wind Rejection RMS
         if isempty(disturbances{s})
             t_wind_start = t_vec(end);
         else
@@ -88,32 +76,22 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         if isempty(idx_wind_eval), idx_wind_eval = 1; end
         wind_rejection = rms(dist_cm(idx_wind_eval:end));
 
-        % 4. RMS Error (last 2 seconds)
         idx_last_2s = find(t_vec >= t_vec(end)-2.0, 1, 'first');
         if isempty(idx_last_2s), idx_last_2s = 1; end
         rms_err = rms(dist_cm(idx_last_2s:end));
 
-        % 5. ITAE
         itae = result.itae;
 
-        % 6. Control Effort
         ctrl_effort = rms(sqrt(result.pitch_act.^2 + result.roll_act.^2)) * (180/pi);
 
-        % Combine metrics into vector
         metrics = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
         
-        % Unclipped Cost for Algorithm
         costs(s) = sum(w .* (metrics ./ ref_metrics));
         
-        % Human Readable Score
         human_scores(s) = 100 * sum(w .* max(0, 2 - (metrics ./ ref_metrics)));
     end
 
-    % --- Mod 10 (Benchmark) Skor Sistemiyle Birebir Aynı Ağırlıklandırma ---
-    % Sadece ortalama başarıyı hedefle. Eğer biraz top düşürüp genel mükemmellik 
-    % yakalıyorsa, Benchmark'ta olduğu gibi "Cost" onu şampiyon yapacaktır.
     fitness = mean(costs);
     
-    % Ekranda yazacak puan, birebir Benchmark Final puanı ile aynı matematiktedir.
     robust_score = mean(human_scores);
 end

@@ -3,7 +3,6 @@ function visualize_stewart(sim_result, in_Kp, in_Ki, in_Kd, disturb_table)
         disturb_table = [];
     end
 
-    % Load platform geometry (this might overwrite workspace Kp, Ki, Kd!)
     run('stewart_setup.m');
     
     g_acc = 9.81; % fallback
