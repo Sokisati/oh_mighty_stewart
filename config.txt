@@ -94,3 +94,9 @@ ga_generations    = 120   # Number of generations for GA
 
 cmaes_lambda      = 40    # Offspring (population) size for CMA-ES
 cmaes_generations = 120   # Number of generations for CMA-ES
+
+# -------------------------------------------------------------------------
+# MANUAL MODE PARAMETERS
+# -------------------------------------------------------------------------
+manual_sens_init  = 1.0   # Initial sensitivity multiplier for manual mode
+manual_sens_step  = 0.1   # Sensitivity step size for W/S keys

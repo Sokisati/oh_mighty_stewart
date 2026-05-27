@@ -2,13 +2,16 @@
 %  Stewart Platform - Interactive Manual Control (Mode 4)
 %
 %  ARROWS : hold to tilt platform (fast tilt)
-%  W/S    : raise / lower platform (fast heave for bouncing)
+%  W/S    : increase / decrease arrow key sensitivity
 %  A/D    : fine roll adjustment
 %  R      : reset ball to center
 %  Close window to exit
 
 %% Load base parameters
 run('stewart_setup.m');
+config = load_config();
+if isfield(config, 'manual_sens_step'), sens_step = config.manual_sens_step; else, sens_step = 0.2; end
+if isfield(config, 'manual_sens_init'), sens_init = config.manual_sens_init; else, sens_init = 1.0; end
 
 %% Game state
 % Ball states: 0 = on plate | 1 = free fall | 2 = on floor (waiting reset)
@@ -22,25 +25,23 @@ t_floor_hit  = -inf;
 RESET_DELAY  = 1.5;    % seconds on floor before auto-reset
 
 pitch_cmd = 0;  roll_cmd = 0;
-heave_cmd = h0;             % Current platform height [m]
-heave_vel = 0;              % Platform vertical velocity [m/s] (for bounce detection)
+heave_cmd = h0;             % Current platform height [m] (fixed)
+heave_vel = 0;              % Platform vertical velocity [m/s]
 max_tilt  = 30 * deg2rad;
 rate_fast = 20 * deg2rad;   % Arrow keys [rad/s]
 rate_fine =  3 * deg2rad;   % A/D fine roll [rad/s]
-heave_rate = 0.60;          % W/S heave speed [m/s] — fast enough to launch ball
-heave_min  = h0 * 0.40;     % Min height [m]
-heave_max  = h0 * 1.60;     % Max height [m]
 t_survived = 0;
 
 %% Figure
-fig = figure('Name', 'Stewart Platform - Manual Control  [Arrows=tilt | W/S=heave | A/D=roll | R=reset]', ...
+fig = figure('Name', 'Stewart Platform - Manual Control  [Arrows=tilt | W/S=sensitivity | A/D=roll | R=reset]', ...
     'NumberTitle','off','Color',[0.07 0.07 0.09], ...
     'Position',[80 40 1100 740]);
 set(fig,'Renderer','opengl','RendererMode','manual');
 
 fig.UserData = struct( ...
     'up',false,'down',false,'left',false,'right',false, ...
-    'w',false,'a',false,'s',false,'d',false,'reset',false);
+    'w',false,'a',false,'s',false,'d',false,'reset',false, ...
+    'sens_mult', sens_init, 'sens_step', sens_step);
 set(fig,'KeyPressFcn',  @kp_cb);
 set(fig,'KeyReleaseFcn',@kr_cb);
 
@@ -56,7 +57,7 @@ axis(ax,'manual');
 xlabel(ax,'X [m]','Color',[0.6 0.6 0.6]);
 ylabel(ax,'Y [m]','Color',[0.6 0.6 0.6]);
 zlabel(ax,'Z [m]','Color',[0.6 0.6 0.6]);
-title(ax,'MANUAL CONTROL  |  Arrows = tilt  |  W/S = heave  |  A/D = fine roll  |  R = reset', ...
+title(ax,'MANUAL CONTROL  |  Arrows = tilt  |  W/S = sensitivity  |  A/D = fine roll  |  R = reset', ...
     'Color',[0.92 0.92 0.92],'FontSize',11,'FontWeight','bold');
 
 %% Geometry
@@ -165,19 +166,16 @@ while ishandle(fig)
     end
 
     %-- Arrow keys: fast rate --
-    df = rate_fast * dt;
+    df = rate_fast * ud.sens_mult * dt;
     if ud.up,    pitch_cmd = pitch_cmd - df; end
     if ud.down,  pitch_cmd = pitch_cmd + df; end
     if ud.left,  roll_cmd  = roll_cmd  + df; end   % Swapped direction
     if ud.right, roll_cmd  = roll_cmd  - df; end   % Swapped direction
 
-    %-- W/S: heave (raise/lower platform) --
+    %-- Fixed heave --
     heave_prev = heave_cmd;
     heave_vel_prev = heave_vel;
-    if ud.w, heave_cmd = heave_cmd + heave_rate * dt; end
-    if ud.s, heave_cmd = heave_cmd - heave_rate * dt; end
-    heave_cmd = max(heave_min, min(heave_max, heave_cmd));
-    heave_vel = (heave_cmd - heave_prev) / dt;
+    heave_vel = 0;
 
     %-- A/D: fine roll --
     ds = rate_fine * dt;
@@ -312,8 +310,8 @@ while ishandle(fig)
         'ZData',trail_buf(:,3),'Color',tc);
 
     % HUD
-    set(t_hud1,'String',sprintf('Pitch: %+.1f   Roll: %+.1f   Height: %.0f mm', ...
-        pitch_cmd/deg2rad, roll_cmd/deg2rad, heave_cmd*1000));
+    set(t_hud1,'String',sprintf('Pitch: %+.1f   Roll: %+.1f   Sens: %.1fx', ...
+        pitch_cmd/deg2rad, roll_cmd/deg2rad, ud.sens_mult));
     set(t_hud2,'String',sprintf('Ball: (%.1f, %.1f) cm', ball_x*100, ball_y*100));
     set(t_hud3,'String',sprintf('Survived: %.2f s', t_survived));
 
@@ -344,8 +342,16 @@ function kp_cb(src, evt)
         case 'downarrow',  ud.down  = true;
         case 'leftarrow',  ud.left  = true;
         case 'rightarrow', ud.right = true;
-        case 'w',          ud.w     = true;
-        case 's',          ud.s     = true;
+        case 'w'
+            if ~ud.w
+                ud.sens_mult = ud.sens_mult + ud.sens_step;
+                ud.w = true;
+            end
+        case 's'
+            if ~ud.s
+                ud.sens_mult = max(0.1, ud.sens_mult - ud.sens_step);
+                ud.s = true;
+            end
         case 'a',          ud.a     = true;
         case 'd',          ud.d     = true;
         case 'r',          ud.reset = true;
