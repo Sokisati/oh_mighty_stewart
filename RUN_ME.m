@@ -25,15 +25,14 @@ fprintf('  [5] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
 fprintf('  [6] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
 fprintf('  [7] MRAC Adaptive PID Simulation (Energy-based with leakage)\n');
 fprintf('  [8] Lyapunov Adaptive PID Simulation (Sliding surface with leakage)\n');
-fprintf('  [9] Robust DE PID Tuner     (Differential Evolution)\n');
-fprintf('  [10] Robust CMA-ES PID Tuner (Covariance Matrix Adaptation)\n');
-fprintf('  [11] Evolutionary Benchmark (Compare GA, DE, CMA-ES)\n\n');
+fprintf('  [9] Robust CMA-ES PID Tuner (Covariance Matrix Adaptation)\n');
+fprintf('  [10] Evolutionary Benchmark (Compare GA, CMA-ES)\n\n');
 
-choice = input('Enter choice (1-11, Enter = 1): ', 's');
+choice = input('Enter choice (1-10, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
 % If not running the benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
-if ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '11')
+if ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '10')
     % Default Classic Scenario ratios (loaded from config.txt)
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
@@ -104,14 +103,10 @@ switch choice
         run('simulations/stewart_lyap_sim.m');
 
     case '9'
-        fprintf('[->] Launching Robust DE PID Tuner...\n\n');
-        run('ga/stewart_de_multi_seed.m');
-
-    case '10'
         fprintf('[->] Launching Robust CMA-ES PID Tuner...\n\n');
         run('ga/stewart_cmaes_multi_seed.m');
 
-    case '11'
+    case '10'
         fprintf('[->] Launching Evolutionary Algorithms Comparative Benchmark...\n\n');
         run('benchmarks/stewart_comparative_benchmark.m');
 

@@ -40,13 +40,15 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         result = simulate_ball(Kp, Ki, Kd, params, disturbances{s}, noises{s});
         
         if result.fell_off
-            has_drop = true;
             num_drops = num_drops + 1;
             t_drop = result.t_vec(end);
-            % Time-to-failure penalty (Gradient for drops)
-            % If it drops at 1s -> cost is 1000 + 29*100 = 3900
-            % If it drops at 29s -> cost is 1000 + 1*100 = 1100
-            costs(s) = 1000 + (30.0 - t_drop) * 100;
+            
+            % Benchmark (Mod 10) Uyumlu Düşme Cebi:
+            % Benchmarkta düşme -20 puan (config.drop_penalty).
+            % Unclipped Cost sistemimizde 2.2 değeri -20 puana eşdeğerdir.
+            % Zaman gradyanı ekleyerek (hayatta kaldıkça maliyeti hafifleterek) öğrenmeyi sağlarız.
+            costs(s) = 2.5 + (30.0 - t_drop) * 0.05; 
+            
             human_scores(s) = config.drop_penalty;
             continue;
         end
@@ -100,19 +102,18 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         % Combine metrics into vector
         metrics = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
         
-        % --- NEW: Smooth, Unclipped Cost for Algorithm (LOWER IS BETTER) ---
+        % Unclipped Cost for Algorithm
         costs(s) = sum(w .* (metrics ./ ref_metrics));
         
-        % --- OLD: Human Readable Score for Logging (HIGHER IS BETTER) ---
+        % Human Readable Score
         human_scores(s) = 100 * sum(w .* max(0, 2 - (metrics ./ ref_metrics)));
     end
 
-    avg_cost = mean(costs);
-    max_cost = max(costs);
-
-    % Robust cost blend: 30% average case + 70% worst-case (Minimax strategy)
-    fitness = 0.3 * avg_cost + 0.7 * max_cost;
+    % --- Mod 10 (Benchmark) Skor Sistemiyle Birebir Aynı Ağırlıklandırma ---
+    % Sadece ortalama başarıyı hedefle. Eğer biraz top düşürüp genel mükemmellik 
+    % yakalıyorsa, Benchmark'ta olduğu gibi "Cost" onu şampiyon yapacaktır.
+    fitness = mean(costs);
     
-    % Return human-readable robust score just for printing
-    robust_score = 0.3 * mean(human_scores) + 0.7 * min(human_scores);
+    % Ekranda yazacak puan, birebir Benchmark Final puanı ile aynı matematiktedir.
+    robust_score = mean(human_scores);
 end

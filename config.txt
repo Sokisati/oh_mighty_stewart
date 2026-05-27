@@ -36,7 +36,7 @@ max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
 # -------------------------------------------------------------------------
 Kp           = 8.0      # Proportional gain [rad/m]
 Ki           = 1.0      # Integral gain [rad/(m*s)]
-Kd           = 0.9      # Derivative gain [rad*s/m]
+Kd           = 3      # Derivative gain [rad*s/m]
 
 # -------------------------------------------------------------------------
 # SIMULATION PARAMETERS
@@ -89,10 +89,6 @@ drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negati
 ga_pop_size       = 60    # Population size for GA
 ga_generations    = 120   # Number of generations for GA
 
-de_pop_size       = 60    # Population size for DE
-de_generations    = 120   # Number of generations for DE
-de_F_scale        = 0.8   # Scaling factor for DE mutation
-de_CR             = 0.9   # Crossover probability for DE
 
 cmaes_lambda      = 40    # Offspring (population) size for CMA-ES
 cmaes_generations = 120   # Number of generations for CMA-ES

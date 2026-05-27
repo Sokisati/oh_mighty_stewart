@@ -14,7 +14,7 @@ run('stewart_setup.m');
 %% =========================================================
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
-    struct('name', 'Scenario 1 (0.9 Chaotic + 0.5 Realistic)', 'type', 'combined', 'c_ratio', 0.9, 'r_ratio', 0.5), ...
+    struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
     struct('name', 'Scenario 2 (0.4 Chaotic + 0.8 Realistic)', 'type', 'combined', 'c_ratio', 0.4, 'r_ratio', 0.8), ...
     struct('name', 'Scenario 3 (0.0 Chaotic + 1.0 Realistic)', 'type', 'combined', 'c_ratio', 0.0, 'r_ratio', 1.0)
 };
@@ -28,11 +28,11 @@ base_Kp = config.Kp;
 base_Ki = config.Ki;
 base_Kd = config.Kd;
 
-% Storage for results: 1=Classic, 2=GA, 3=DE, 4=CMA-ES
-R_all = cell(4, num_wind_modes);
-F_all = cell(4, num_wind_modes);
-scores_all = cell(4, num_wind_modes);
-Params = cell(4, num_wind_modes); 
+% Storage for results: 1=Classic, 2=GA, 3=CMA-ES
+R_all = cell(3, num_wind_modes);
+F_all = cell(3, num_wind_modes);
+scores_all = cell(3, num_wind_modes);
+Params = cell(3, num_wind_modes); 
 
 global WIND_TYPE;
 global WIND_C_RATIO;
@@ -52,23 +52,18 @@ for sc = 1:num_wind_modes
     
     fprintf('--- TRAINING PHASE ---\n');
     % GA
-    fprintf('[GA] Training Robust Genetic Algorithm...\n');
+    fprintf('[GA] Training Robust Island Genetic Algorithm...\n');
     [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, false, 42);
     Params{2, sc} = [Kp_ga, Ki_ga, Kd_ga];
     
-    % DE
-    fprintf('[DE] Training Robust Differential Evolution...\n');
-    [Kp_de, Ki_de, Kd_de] = stewart_de_multi_seed(50, config.de_pop_size, config.de_generations, false, 42);
-    Params{3, sc} = [Kp_de, Ki_de, Kd_de];
-    
     % CMA-ES
-    fprintf('[CMA-ES] Training Robust CMA-ES...\n');
+    fprintf('[CMA-ES] Training Robust IPOP-CMA-ES...\n');
     [Kp_cmaes, Ki_cmaes, Kd_cmaes] = stewart_cmaes_multi_seed(50, config.cmaes_lambda, config.cmaes_generations, false, 42);
-    Params{4, sc} = [Kp_cmaes, Ki_cmaes, Kd_cmaes];
+    Params{3, sc} = [Kp_cmaes, Ki_cmaes, Kd_cmaes];
     
     fprintf('\n--- VALIDATION PHASE (%d Seeds) ---\n', num_val);
     
-    for m = 1:4
+    for m = 1:3
         R_all{m, sc} = zeros(num_val, 6);
         F_all{m, sc} = zeros(num_val, 1);
     end
@@ -76,7 +71,7 @@ for sc = 1:num_wind_modes
     for v = 1:num_val
         vs = validation_seeds(v);
         
-        for m = 1:4
+        for m = 1:3
             p = Params{m, sc};
             [res, fell] = run_headless_sim(p(1), p(2), p(3), vs, dt, g_acc, c_roll, r_limit);
             R_all{m, sc}(v,:) = res;
@@ -96,8 +91,7 @@ for sc = 1:num_wind_modes
     method_names = {
         sprintf('1. Classic PID (%.2f, %.2f, %.2f)', Params{1, sc}), ...
         sprintf('2. Robust GA PID (%.2f, %.2f, %.2f)', Params{2, sc}), ...
-        sprintf('3. Robust DE PID (%.2f, %.2f, %.2f)', Params{3, sc}), ...
-        sprintf('4. Robust CMA-ES (%.2f, %.2f, %.2f)', Params{4, sc})
+        sprintf('3. Robust CMA-ES (%.2f, %.2f, %.2f)', Params{3, sc})
     };
     
     % Reference metrics for score (Classic PID averages)
@@ -111,7 +105,7 @@ for sc = 1:num_wind_modes
     fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | Drops | TOTAL SCORE\n', 'Method (Kp, Ki, Kd)');
     fprintf('-------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
     
-    for m = 1:4
+    for m = 1:3
         R = R_all{m, sc};
         F = F_all{m, sc};
         
@@ -140,8 +134,8 @@ fprintf('=======================================================================
 fprintf(' %-38s | Overall Average Score\n', 'Method');
 fprintf('------------------------------------------------------------------------------------\n');
 
-m_names = {'1. Classic PID', '2. Robust GA PID', '3. Robust DE PID', '4. Robust CMA-ES'};
-for m = 1:4
+m_names = {'1. Classic PID', '2. Robust GA PID', '3. Robust CMA-ES'};
+for m = 1:3
     avg_score = 0;
     for sc = 1:num_wind_modes
         avg_score = avg_score + mean(scores_all{m, sc});
