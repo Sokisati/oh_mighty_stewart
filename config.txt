@@ -43,8 +43,8 @@ noise_sigma_rw    = 0.00001 # Low frequency sensor drift (random walk) step stan
 noise_spike_prob  = 0.0001  # Probability of a camera reading spike (outlier) per step
 noise_spike_mag   = 0.0001  # Maximum amplitude of reading spikes [m]
 
-classic_c_ratio   = 0.6    # Default chaotic wind blend ratio
-classic_r_ratio   = 1.0    # Default realistic wind blend ratio
+classic_c_ratio   = 0.5    # Default chaotic wind blend ratio
+classic_r_ratio   = 0.5    # Default realistic wind blend ratio
 
 drop_penalty      = -20.0   # Penalty score for dropping the ball (severe negative score to prioritize safety)
 

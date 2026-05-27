@@ -15,25 +15,52 @@ pos_ref_pid = zeros(N, 6);
 pos_ref_pid(:, 3) = h0;   % fixed height
 
 load_config; % Loads Kp, Ki, Kd as analytical baseline from config
+base_Kp = Kp; base_Ki = Ki; base_Kd = Kd;
 
-fprintf('\nPID Parameter Selection:\n');
-fprintf('  [1] Custom Values (enter Kp, Ki, Kd manually)\n');
-fprintf('  [2] Analytically Calculated Values (Kp=%.3f, Ki=%.3f, Kd=%.3f)\n', Kp, Ki, Kd);
-pid_choice = input('Your choice (1-2, Default = 2): ', 's');
+fprintf('\nController Architecture Selection:\n');
+fprintf('  [1] Fixed Controller (Classic PID)\n');
+fprintf('  [2] Adaptive Controller (Expert NLPID)\n');
+arch_choice = input('Your choice (1-2, Default = 1): ', 's');
 
-if strcmp(pid_choice, '1')
-    str_Kp = input(sprintf('Enter Kp value (Old: %.3f): ', Kp), 's');
-    if ~isempty(str_Kp), Kp = str2double(str_Kp); end
+fprintf('\nParameter Tuning Selection:\n');
+fprintf('  [1] Analytical Baseline (Kp=%.3f, Ki=%.3f, Kd=%.3f)\n', base_Kp, base_Ki, base_Kd);
+fprintf('  [2] Genetic Algorithm (Train live on selected wind)\n');
+fprintf('  [3] Custom Manual Values\n');
+tune_choice = input('Your choice (1-3, Default = 1): ', 's');
+
+if strcmp(tune_choice, '2')
+    fprintf('\nGA Training Speed:\n');
+    fprintf('  [1] Fastest (Pop: 20, Gen: 20)\n');
+    fprintf('  [2] Medium  (Pop: 40, Gen: 50)\n');
+    fprintf('  [3] Slowest (Pop: 60, Gen: 120)\n');
+    ga_speed = input('Your choice (1-3, Default = 1): ', 's');
     
-    str_Ki = input(sprintf('Enter Ki value (Old: %.3f): ', Ki), 's');
-    if ~isempty(str_Ki), Ki = str2double(str_Ki); end
+    if strcmp(ga_speed, '2')
+        p_size = 40; g_count = 50;
+    elseif strcmp(ga_speed, '3')
+        p_size = 60; g_count = 120;
+    else
+        p_size = 20; g_count = 20;
+    end
     
-    str_Kd = input(sprintf('Enter Kd value (Old: %.3f): ', Kd), 's');
-    if ~isempty(str_Kd), Kd = str2double(str_Kd); end
+    fprintf('\n[GA] Training Genetic Algorithm (Pop: %d, Gen: %d)...\n', p_size, g_count);
+    [Kp, Ki, Kd] = stewart_ga_multi_seed(50, p_size, g_count, false, seed);
+    fprintf('-> GA Training Complete: Kp=%.3f, Ki=%.3f, Kd=%.3f\n\n', Kp, Ki, Kd);
     
-    fprintf('-> Custom PID Values Set: Kp=%.3f, Ki=%.3f, Kd=%.3f\n', Kp, Ki, Kd);
+elseif strcmp(tune_choice, '3')
+    str_Kp = input(sprintf('Enter Kp value (Old: %.3f): ', base_Kp), 's');
+    if ~isempty(str_Kp), Kp = str2double(str_Kp); else, Kp = base_Kp; end
+    
+    str_Ki = input(sprintf('Enter Ki value (Old: %.3f): ', base_Ki), 's');
+    if ~isempty(str_Ki), Ki = str2double(str_Ki); else, Ki = base_Ki; end
+    
+    str_Kd = input(sprintf('Enter Kd value (Old: %.3f): ', base_Kd), 's');
+    if ~isempty(str_Kd), Kd = str2double(str_Kd); else, Kd = base_Kd; end
+    
+    fprintf('-> Custom PID Values Set: Kp=%.3f, Ki=%.3f, Kd=%.3f\n\n', Kp, Ki, Kd);
 else
-    fprintf('-> Using Analytical PID Values: Kp=%.3f, Ki=%.3f, Kd=%.3f\n', Kp, Ki, Kd);
+    Kp = base_Kp; Ki = base_Ki; Kd = base_Kd;
+    fprintf('-> Using Analytical PID Values: Kp=%.3f, Ki=%.3f, Kd=%.3f\n\n', Kp, Ki, Kd);
 end
 
 max_tilt = max_tilt_deg * deg2rad;   % physical tilt limit [rad]
@@ -49,6 +76,18 @@ sim_params.r_limit  = r_limit;
 sim_params.max_tilt = max_tilt;
 sim_params.ball_x0  = 0.05;
 sim_params.ball_y0  = 0.03;
+
+if strcmp(arch_choice, '2')
+    sim_params.nlpid.active = true;
+    sim_params.nlpid.e_scale = 0.03;
+    sim_params.nlpid.i_scale = 0.02;
+    sim_params.nlpid.kp_boost = 1.5;
+    sim_params.nlpid.kd_boost = 0.5;
+    sim_params.nlpid.ki_boost = 1.5;
+    fprintf('-> [Active] Expert NLPID Adaptive System is ON.\n');
+else
+    fprintf('-> [Active] Classic Fixed PID System is ON.\n');
+end
 
 sim_result = simulate_ball(Kp, Ki, Kd, sim_params, disturb_table, noise_table);
 
@@ -282,11 +321,7 @@ set(gca,'Color',[0.08 0.08 0.10],'XColor',[0.8 0.8 0.8],'YColor',[0.8 0.8 0.8],'
 hold on; grid on;
 plot(t_vec, ball_x_pid*100, 'Color',[0.3 0.6 1.0],'LineWidth',1.8,'DisplayName','X');
 plot(t_vec, ball_y_pid*100, 'Color',[1.0 0.4 0.3],'LineWidth',1.8,'DisplayName','Y');
-yline(0,'--','Color',[0.7 0.7 0.7],'LineWidth',1.2,'Label','Setpoint');
-for d = 1:size(disturb_table,1)
-    xline(disturb_table(d,1),'--','Color',[1.0 0.8 0.2],'LineWidth',1.2, ...
-        'Label',sprintf('D%d',d),'LabelVerticalAlignment','bottom');
-end
+yline(0,'--','Color',[0.7 0.7 0.7],'LineWidth',1.2,'Label','Setpoint','HandleVisibility','off');
 ylabel('Ball position [cm]','Color',[0.8 0.8 0.8]);
 title('Ball Position (Setpoint = 0)','Color',[0.95 0.95 0.95],'FontWeight','bold');
 legend('Location','best','TextColor',[0.8 0.8 0.8],'Color',[0.12 0.12 0.15]);
@@ -296,10 +331,7 @@ set(gca,'Color',[0.08 0.08 0.10],'XColor',[0.8 0.8 0.8],'YColor',[0.8 0.8 0.8],'
 hold on; grid on;
 plot(t_vec, pitch_log/deg2rad,'Color',[0.3 0.9 0.4],'LineWidth',1.8,'DisplayName','Pitch cmd');
 plot(t_vec, roll_log/deg2rad, 'Color',[1.0 0.8 0.2],'LineWidth',1.8,'DisplayName','Roll cmd');
-yline(0,'--','Color',[0.6 0.6 0.6],'LineWidth',1);
-for d = 1:size(disturb_table,1)
-    xline(disturb_table(d,1),'--','Color',[1.0 0.8 0.2],'LineWidth',1.2);
-end
+yline(0,'--','Color',[0.6 0.6 0.6],'LineWidth',1,'HandleVisibility','off');
 ylabel('PID output [deg]','Color',[0.8 0.8 0.8]);
 title('Platform Tilt Commands (PID Output)','Color',[0.95 0.95 0.95],'FontWeight','bold');
 legend('Location','best','TextColor',[0.8 0.8 0.8],'Color',[0.12 0.12 0.15]);
@@ -309,11 +341,7 @@ set(gca,'Color',[0.08 0.08 0.10],'XColor',[0.8 0.8 0.8],'YColor',[0.8 0.8 0.8],'
 hold on; grid on;
 dist_pid = sqrt(ball_x_pid.^2 + ball_y_pid.^2) * 100;
 plot(t_vec, dist_pid,'Color',[0.9 0.5 1.0],'LineWidth',2.0);
-yline(0.5,'--','Color',[0.6 0.6 0.6],'LineWidth',1,'Label','0.5 cm tolerance');
-for d = 1:size(disturb_table,1)
-    xline(disturb_table(d,1),'--','Color',[1.0 0.8 0.2],'LineWidth',1.2, ...
-        'Label',sprintf('D%d',d),'LabelVerticalAlignment','bottom');
-end
+yline(0.5,'--','Color',[0.6 0.6 0.6],'LineWidth',1,'Label','0.5 cm tolerance','HandleVisibility','off');
 xlabel('Time [s]','Color',[0.8 0.8 0.8]);
 ylabel('Distance [cm]','Color',[0.8 0.8 0.8]);
 title('Ball Distance from Center','Color',[0.95 0.95 0.95],'FontWeight','bold');
