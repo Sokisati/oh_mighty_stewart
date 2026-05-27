@@ -194,3 +194,79 @@ for sc = 1:num_wind_modes
     legend('Kp', 'Ki', 'Kd', 'Location', 'best');
     grid on;
 end
+
+%% =========================================================
+%  HEADLESS SIMULATION FUNCTION
+%% =========================================================
+function [res, fell_off, logs] = run_adaptive_sim(type, Kp_base, Ki_base, Kd_base, seed, dt, g_acc, c_roll, r_limit)
+    params.dt       = dt;
+    params.T_sim    = 30;
+    params.g_acc    = g_acc;
+    params.c_roll   = c_roll;
+    params.r_limit  = r_limit;
+    params.max_tilt = 30 * (pi/180);
+    params.ball_x0  = 0.05;
+    params.ball_y0  = 0.03;
+
+    if strcmp(type, 'mrac')
+        params.mrac.active = true;
+        params.mrac.gamma_p = 250.0;
+        params.mrac.sigma_p = 0.5;
+        params.mrac.gamma_i = 500.0;
+        params.mrac.sigma_i = 1.0;
+        params.mrac.gamma_d = 250.0;
+        params.mrac.sigma_d = 0.5;
+    end
+
+    disturb_table = generate_disturbances(seed, params.T_sim);
+    noise_table   = generate_sensor_noise(seed, params.T_sim, dt);
+
+    result = simulate_ball(Kp_base, Ki_base, Kd_base, params, disturb_table, noise_table);
+    fell_off = result.fell_off;
+
+    ball_x = result.ball_x;
+    ball_y = result.ball_y;
+    t_vec  = result.t_vec;
+
+    dist_cm = sqrt(ball_x.^2 + ball_y.^2) * 100;
+    d0 = dist_cm(1);
+    if d0 == 0, d0 = 0.001; end
+
+    idx_90 = find(dist_cm <= 0.9*d0, 1, 'first');
+    idx_10 = find(dist_cm <= 0.1*d0, 1, 'first');
+    if ~isempty(idx_90) && ~isempty(idx_10)
+        rise_time = t_vec(idx_10) - t_vec(idx_90);
+    else
+        rise_time = params.T_sim; 
+    end
+
+    idx_settled = find(dist_cm <= 1.0, 1, 'first');
+    if ~isempty(idx_settled)
+        settling_time = t_vec(idx_settled);
+    else
+        settling_time = params.T_sim;
+    end
+
+    if isempty(disturb_table)
+        t_wind_start = t_vec(end);
+    else
+        t_wind_start = disturb_table(1,1);
+    end
+    idx_wind_eval = find(t_vec >= (t_wind_start + 1.0), 1, 'first');
+    if isempty(idx_wind_eval), idx_wind_eval = 1; end
+    wind_rejection = rms(dist_cm(idx_wind_eval:end));
+
+    idx_last_2s = find(t_vec >= t_vec(end)-2.0, 1, 'first');
+    if isempty(idx_last_2s), idx_last_2s = 1; end
+    rms_err = rms(dist_cm(idx_last_2s:end));
+
+    itae = result.itae;
+    ctrl_effort = rms(sqrt(result.pitch_act.^2 + result.roll_act.^2)) * (180/pi);
+
+    res = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
+    
+    logs.t = t_vec;
+    logs.Kp = result.Kp_log;
+    logs.Ki = result.Ki_log;
+    logs.Kd = result.Kd_log;
+end
