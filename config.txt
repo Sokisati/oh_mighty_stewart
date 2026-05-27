@@ -27,7 +27,7 @@ c_roll       = 0.8      # Rolling damping [1/s]
 # -------------------------------------------------------------------------
 # ACTUATOR & MOTOR PARAMETERS
 # -------------------------------------------------------------------------
-delay_sec    = 0.040    # Actuator loop delay [seconds] (sensor latency + servo time)
+delay_sec    = 0.04    # Actuator loop delay [seconds] (sensor latency + servo time)
 slew_rate_deg = 250.0   # Maximum platform angular velocity [degrees/second]
 max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
 

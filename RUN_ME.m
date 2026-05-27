@@ -37,16 +37,15 @@ fprintf('  [1] PID Ball Balancing      (closed-loop, classic PID)\n');
 fprintf('  [2] Manual Control          (arrows + WASD, game mode)\n');
 fprintf('  [3] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
 fprintf('  [4] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
-fprintf('  [5] MRAC Adaptive PID Simulation (Energy-based with leakage)\n');
-fprintf('  [6] Lyapunov Adaptive PID Simulation (Sliding surface with leakage)\n');
-fprintf('  [7] Evolutionary Benchmark (Compare GA, CMA-ES)\n');
-fprintf('  [8] Adaptive PID Benchmark  (Classic vs MRAC vs Lyapunov)\n\n');
+fprintf('  [5] MRAC Adaptive PID Simulation (True Gradient Descent)\n');
+fprintf('  [6] Evolutionary Benchmark (Compare GA, CMA-ES)\n');
+fprintf('  [7] Adaptive PID Benchmark  (Classic vs MRAC)\n\n');
 
-choice = input('Enter choice (1-8, Enter = 1): ', 's');
+choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
 % If not running manual mode, benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
-if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '7') && ~strcmp(choice, '8')
+if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '6') && ~strcmp(choice, '7')
     % Default Classic Scenario ratios (loaded from config.txt)
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
@@ -105,14 +104,10 @@ switch choice
         run('simulations/stewart_mrac_sim.m');
 
     case '6'
-        fprintf('[->] Launching Lyapunov Adaptive PID Simulation...\n\n');
-        run('simulations/stewart_lyap_sim.m');
-
-    case '7'
         fprintf('[->] Launching Evolutionary Algorithms Comparative Benchmark...\n\n');
         run('benchmarks/stewart_comparative_benchmark.m');
         
-    case '8'
+    case '7'
         fprintf('[->] Launching Adaptive PID Benchmark...\n\n');
         run('benchmarks/stewart_adaptive_benchmark.m');
 
