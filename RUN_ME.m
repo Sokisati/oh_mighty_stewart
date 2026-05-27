@@ -38,13 +38,14 @@ fprintf('  [2] Manual Control          (arrows + WASD, game mode)\n');
 fprintf('  [3] Wind Analyzer           (Realistic vs Chaotic Wind)\n');
 fprintf('  [4] Ziegler-Nichols Auto-Tuner (Find Ku/Tu & Plot Oscillations)\n');
 fprintf('  [5] Evolutionary Benchmark (Compare GA, CMA-ES)\n');
-fprintf('  [6] Adaptive PID Benchmark  (Classic vs MRAC)\n\n');
+fprintf('  [6] Adaptive PID Benchmark  (Classic vs MRAC)\n');
+fprintf('  [7] Ultimate Benchmark      (Classic vs MRAC vs GA vs GA-MRAC)\n\n');
 
-choice = input('Enter choice (1-6, Enter = 1): ', 's');
+choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
 
 % If not running manual mode, benchmark, wind analyzer, or Z-N tuner, ask which wind type to use
-if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6')
+if ~strcmp(choice, '2') && ~strcmp(choice, '3') && ~strcmp(choice, '4') && ~strcmp(choice, '5') && ~strcmp(choice, '6') && ~strcmp(choice, '7')
     % Default Classic Scenario ratios (loaded from config.txt)
     config = load_config();
     classic_c_ratio = config.classic_c_ratio;
@@ -105,6 +106,10 @@ switch choice
     case '6'
         fprintf('[->] Launching Adaptive PID Benchmark...\n\n');
         run('benchmarks/stewart_adaptive_benchmark.m');
+        
+    case '7'
+        fprintf('[->] Launching Ultimate Benchmark...\n\n');
+        run('benchmarks/stewart_ultimate_benchmark.m');
 
     otherwise
         fprintf('[!] Invalid choice. Defaulting to PID ball balancing simulation.\n');

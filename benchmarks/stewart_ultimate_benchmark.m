@@ -1,0 +1,196 @@
+%% stewart_ultimate_benchmark.m
+%  Ultimate Benchmark for Stewart Platform
+%  Compares 4 methods across 3 wind scenarios (100 unseen seeds each):
+%  1. Classic PID (Fixed, Analytic Baseline)
+%  2. MRAC Adaptive PID (Adaptive, Analytic Baseline)
+%  3. Genetic PID (Fixed, Tuned by Island GA)
+%  4. Genetic Adaptive PID (Adaptive, Tuned by Island GA)
+
+clc; close all;
+fprintf('\n====================================================\n');
+fprintf('               ULTIMATE BENCHMARK\n');
+fprintf('====================================================\n\n');
+
+run('stewart_setup.m');
+
+%% =========================================================
+%  WIND SCENARIOS
+%% =========================================================
+global WIND_SCENARIOS;
+WIND_SCENARIOS = {
+    struct('name', 'Scenario 1 (0.8 Chaotic + 0.6 Realistic)', 'type', 'combined', 'c_ratio', 0.8, 'r_ratio', 0.6), ...
+    struct('name', 'Scenario 2 (0.4 Chaotic + 0.8 Realistic)', 'type', 'combined', 'c_ratio', 0.4, 'r_ratio', 0.8), ...
+    struct('name', 'Scenario 3 (0.0 Chaotic + 1.0 Realistic)', 'type', 'combined', 'c_ratio', 0.0, 'r_ratio', 1.0)
+};
+
+num_wind_modes = length(WIND_SCENARIOS);
+num_val = 100; % 100 seeds for validation
+validation_seeds = randi([40001, 50000], 1, num_val);
+
+config = load_config();
+base_Kp = config.Kp;
+base_Ki = config.Ki;
+base_Kd = config.Kd;
+
+% Storage for results: 1=Classic, 2=MRAC, 3=GA, 4=GA-MRAC
+R_all = cell(4, num_wind_modes);
+F_all = cell(4, num_wind_modes);
+scores_all = cell(4, num_wind_modes);
+Params = cell(2, num_wind_modes); % Store Analytic vs GA params
+
+global WIND_TYPE;
+global WIND_C_RATIO;
+global WIND_R_RATIO;
+
+mrac_logs_all = cell(num_wind_modes, 1);
+
+for sc = 1:num_wind_modes
+    scen = WIND_SCENARIOS{sc};
+    fprintf('\n=========================================================================\n');
+    fprintf('  RUNNING EXPERIMENT %d/%d: %s\n', sc, num_wind_modes, scen.name);
+    fprintf('=========================================================================\n\n');
+    
+    WIND_TYPE = scen.type;
+    WIND_C_RATIO = scen.c_ratio;
+    WIND_R_RATIO = scen.r_ratio;
+    
+    Params{1, sc} = [base_Kp, base_Ki, base_Kd];
+    
+    fprintf('--- TRAINING PHASE ---\n');
+    fprintf('[GA] Training Island Genetic Algorithm to find optimal baseline...\n');
+    [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, false, 42);
+    Params{2, sc} = [Kp_ga, Ki_ga, Kd_ga];
+    
+    fprintf('\n--- VALIDATION PHASE (%d Seeds) ---\n', num_val);
+    
+    for m = 1:4
+        R_all{m, sc} = zeros(num_val, 6);
+        F_all{m, sc} = zeros(num_val, 1);
+    end
+    
+    h_wait = waitbar(0, sprintf('Scenario %d/%d Validation...', sc, num_wind_modes));
+    
+    for v = 1:num_val
+        vs = validation_seeds(v);
+        waitbar(v/num_val, h_wait);
+        
+        % 1. Classic PID (Fixed, Analytic)
+        p = Params{1, sc};
+        [r, f, ~] = run_adaptive_sim('classic', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        R_all{1, sc}(v,:) = r; F_all{1, sc}(v) = f;
+        
+        % 2. MRAC Adaptive PID (Analytic Baseline)
+        [r, f, ~] = run_adaptive_sim('mrac', p(1), p(2), p(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        R_all{2, sc}(v,:) = r; F_all{2, sc}(v) = f;
+        
+        % 3. Genetic PID (Fixed, Tuned)
+        p_ga = Params{2, sc};
+        [r, f, ~] = run_adaptive_sim('classic', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        R_all{3, sc}(v,:) = r; F_all{3, sc}(v) = f;
+        
+        % 4. Genetic Adaptive PID (MRAC, Tuned Baseline)
+        [r, f, m_logs] = run_adaptive_sim('mrac', p_ga(1), p_ga(2), p_ga(3), vs, config.dt, config.g_acc, config.c_roll, config.R_base);
+        R_all{4, sc}(v,:) = r; F_all{4, sc}(v) = f;
+        
+        % Log MRAC gain changes for the first seed of GA-MRAC
+        if v == 1
+            mrac_logs_all{sc} = m_logs;
+        end
+    end
+    close(h_wait);
+end
+
+%% =========================================================
+%  AGGREGATION AND REPORTING
+%% =========================================================
+w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; 
+
+for sc = 1:num_wind_modes
+    scen = WIND_SCENARIOS{sc};
+    
+    method_names = {
+        sprintf('1. Classic PID (%.2f, %.2f, %.2f)', Params{1, sc}(1), Params{1, sc}(2), Params{1, sc}(3)), ...
+        sprintf('2. MRAC Adaptive (%.2f, %.2f, %.2f)', Params{1, sc}(1), Params{1, sc}(2), Params{1, sc}(3)), ...
+        sprintf('3. Genetic PID (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3)), ...
+        sprintf('4. Gen-Adapt MRAC (%.2f, %.2f, %.2f)', Params{2, sc}(1), Params{2, sc}(2), Params{2, sc}(3))
+    };
+    
+    % Reference metrics for score (Classic PID averages)
+    R1 = R_all{1, sc}; F1 = F_all{1, sc};
+    idx_success = find(F1 == 0);
+    if ~isempty(idx_success), a1_ref = mean(R1(idx_success, :), 1); else, a1_ref = mean(R1, 1); end
+    
+    fprintf('\n=========================================================================================================================================================================\n');
+    fprintf('                                              ULTIMATE BENCHMARK RESULTS FOR %s (%d Seeds)\n', upper(scen.name), num_val);
+    fprintf('=========================================================================================================================================================================\n');
+    fprintf(' %-38s | Rise Time (s) | Settling (s) | Rejection(cm)| RMS Err (cm) | ITAE Score | Ctrl Effort (deg) | Drops | TOTAL SCORE\n', 'Method');
+    fprintf('-------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n');
+    
+    for m = 1:4
+        R = R_all{m, sc};
+        F = F_all{m, sc};
+        
+        if sum(F == 0) > 0, avg_R = mean(R(F == 0, :), 1); else, avg_R = mean(R, 1); end
+        
+        scores = zeros(num_val, 1);
+        for v = 1:num_val
+            if F(v) == 1
+                scores(v) = config.drop_penalty;
+            else
+                scores(v) = 100 * sum(w .* max(0, 2 - (R(v, :) ./ a1_ref)));
+            end
+        end
+        scores_all{m, sc} = scores;
+        s_avg = mean(scores);
+        
+        fprintf(' %-38s | %13.3f | %13.2f | %12.3f | %12.3f | %10.2f | %17.3f | %5d | %11.1f\n', method_names{m}, avg_R(1), avg_R(2), avg_R(3), avg_R(4), avg_R(5), avg_R(6), sum(F), s_avg);
+    end
+    fprintf('=========================================================================================================================================================================\n\n');
+end
+
+% Compute overall averages
+fprintf('\n====================================================================================\n');
+fprintf('                          FINAL OVERALL SUMMARY (Averaged over %d Wind Modes)\n', num_wind_modes);
+fprintf('====================================================================================\n');
+fprintf(' %-38s | Overall Average Score\n', 'Method');
+fprintf('------------------------------------------------------------------------------------\n');
+
+m_names = {'1. Classic PID (Analytic Fixed)', '2. MRAC Adaptive (Analytic Base)', '3. Genetic PID (GA Fixed)', '4. Genetic Adaptive (GA Base)'};
+for m = 1:4
+    avg_score = 0;
+    for sc = 1:num_wind_modes
+        avg_score = avg_score + mean(scores_all{m, sc});
+    end
+    avg_score = avg_score / num_wind_modes;
+    fprintf(' %-38s | %21.2f\n', m_names{m}, avg_score);
+end
+fprintf('====================================================================================\n\n');
+
+%% =========================================================
+%  PLOT GA-MRAC GAIN HISTORIES
+%% =========================================================
+figure('Name', 'Genetic Adaptive MRAC Gain Histories (Seed #1)', 'Position', [100, 100, 1200, 800]);
+for sc = 1:num_wind_modes
+    m_logs = mrac_logs_all{sc};
+    t = m_logs.t;
+    
+    base_Kp_ga = Params{2, sc}(1);
+    base_Ki_ga = Params{2, sc}(2);
+    base_Kd_ga = Params{2, sc}(3);
+    
+    subplot(3, 1, sc);
+    plot(t, m_logs.Kp, 'r', 'LineWidth', 1.5); hold on;
+    plot(t, m_logs.Ki, 'g', 'LineWidth', 1.5);
+    plot(t, m_logs.Kd, 'b', 'LineWidth', 1.5);
+    
+    plot([t(1) t(end)], [base_Kp_ga base_Kp_ga], 'r--');
+    plot([t(1) t(end)], [base_Ki_ga base_Ki_ga], 'g--');
+    plot([t(1) t(end)], [base_Kd_ga base_Kd_ga], 'b--');
+    hold off;
+    
+    title(sprintf('GA-MRAC Gain Adaptation - %s', WIND_SCENARIOS{sc}.name));
+    xlabel('Time (s)');
+    ylabel('Gain Value');
+    legend('Kp', 'Ki', 'Kd', 'Location', 'best');
+    grid on;
+end
