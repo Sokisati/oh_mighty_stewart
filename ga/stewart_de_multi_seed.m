@@ -121,8 +121,8 @@ for gen = 1:GENERATIONS
     
     if gen == GENERATIONS, break; end
     
-    if gen > 20
-        if (best_fitness_history(gen-20) - best_fitness) < 0.001
+    if gen > 35
+        if (best_fitness_history(gen-35) - best_fitness) < 0.001
             fprintf('Early stopping triggered at generation %d.\n', gen);
             break;
         end
@@ -136,7 +136,9 @@ for gen = 1:GENERATIONS
         end
         r1 = idx(1); r2 = idx(2); r3 = idx(3);
         
-        v = pop(r1, :) + F_scale * (pop(r2, :) - pop(r3, :));
+        % Dithering: randomize F and CR per mutation for aggressive search
+        f_mut = F_scale + 0.2 * randn(); 
+        v = pop(r1, :) + f_mut * (pop(r2, :) - pop(r3, :));
         
         for g = 1:3
             v(g) = max(LB(g), min(UB(g), v(g)));

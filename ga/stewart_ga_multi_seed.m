@@ -1,7 +1,8 @@
 function [best_Kp, best_Ki, best_Kd] = stewart_ga_multi_seed(num_scenarios, pop_size, generations, show_plot, rng_seed)
 %% stewart_ga_multi_seed.m
-%  Robust Genetic Algorithm: Trains PID across multiple random wind/noise scenarios
-%  (domain randomization)
+%  Robust Island Model Genetic Algorithm
+%  Multiple isolated populations evolve independently and exchange elites
+%  to maintain high diversity and prevent local minima.
 
 config = load_config();
 if nargin < 1, num_scenarios = 100; end
@@ -16,9 +17,16 @@ clc;
 if show_plot, close all; end
 
 fprintf('\n================================================\n');
-fprintf('  STAGE 3: ROBUST GENETIC ALGORITHM PID OPTIMIZATION\n');
+fprintf('  STAGE 3: ROBUST ISLAND MODEL GA PID TUNING\n');
 fprintf('================================================\n');
-fprintf('Training config: Scenarios = %d, Pop Size = %d, Generations = %d\n', num_scenarios, pop_size, generations);
+
+NUM_ISLANDS = 4;
+MIGRATION_INTERVAL = 10;
+island_pop_size = max(4, ceil(pop_size / NUM_ISLANDS));
+POP_SIZE = island_pop_size * NUM_ISLANDS; % Adjust total
+
+fprintf('Training config: Scenarios = %d, Total Pop Size = %d (%d Islands x %d), Generations = %d\n', ...
+    num_scenarios, POP_SIZE, NUM_ISLANDS, island_pop_size, generations);
 
 run('stewart_setup.m');
 h0_val = h0;
@@ -26,15 +34,11 @@ r_limit_val = r_limit;
 g_acc_val = g_acc;
 c_roll_val = c_roll;
 
-
-% Respect wind parameters set by RUN_ME.m, or default to robust 'realistic' wind if run directly
 global WIND_TYPE;
 global WIND_C_RATIO;
 global WIND_R_RATIO;
 
-if isempty(WIND_TYPE)
-    WIND_TYPE = 'realistic';
-end
+if isempty(WIND_TYPE), WIND_TYPE = 'realistic'; end
 
 if strcmpi(WIND_TYPE, 'combined')
     fprintf('Active Wind Scenario: COMBINED (c:%.2f r:%.2f)\n', WIND_C_RATIO, WIND_R_RATIO);
@@ -42,49 +46,37 @@ else
     fprintf('Active Wind Scenario: %s\n', upper(WIND_TYPE));
 end
 
-% 1. GA Parameters & Dynamic Bounds
-POP_SIZE = pop_size;         
-GENERATIONS = generations;      
-MUTATION_IMPACT = 1.0; % Increased from 0.5 to allow larger jumps
-FAILURE_THRESHOLD = 5000; % Threshold to filter out fell_off results
+MUTATION_IMPACT = 2.5; % Increased aggressively to explore further bounds 
 
 UB = [25.0, 40.0, 10.0];
 LB = [0.0,  0.0,  0.0];
 
-
-% 3. Initialize Random Population
-pop = zeros(POP_SIZE, 3);
-for i = 1:POP_SIZE
-    pop(i,:) = LB + rand(1,3) .* (UB - LB);
+% Initialize Islands
+pop = zeros(NUM_ISLANDS, island_pop_size, 3);
+for i = 1:NUM_ISLANDS
+    for j = 1:island_pop_size
+        pop(i,j,:) = LB + rand(1,3) .* (UB - LB);
+    end
 end
 
-fitness_scores = zeros(POP_SIZE, 1);
-robust_scores = zeros(POP_SIZE, 1);
-num_drops = zeros(POP_SIZE, 1);
+best_fitness_history = zeros(generations, 1);
+avg_fitness_history = zeros(generations, 1);
+best_score_history = zeros(generations, 1);
 
-best_fitness_history = zeros(GENERATIONS, 1);
-avg_fitness_history = zeros(GENERATIONS, 1);
-best_score_history = zeros(GENERATIONS, 1);
-avg_score_history = zeros(GENERATIONS, 1);
-
-% 4. Live Plotting
 if show_plot
-    fig = figure('Name', 'Robust GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
+    fig = figure('Name', 'Robust Island GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
     ax = axes('Parent', fig, 'Color', [0.15 0.15 0.18], 'XColor', 'w', 'YColor', 'w');
     hold(ax, 'on'); grid(ax, 'on');
-    title(ax, sprintf('Robust Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
+    title(ax, sprintf('Island GA Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
     xlabel(ax, 'Generation', 'Color', 'w');
-    ylabel(ax, 'Average Benchmark Score', 'Color', 'w');
-    h_best = plot(ax, NaN, NaN, 'g.-', 'LineWidth', 2, 'MarkerSize', 15, 'DisplayName', 'Best Fitness');
-    h_avg  = plot(ax, NaN, NaN, 'y.--', 'LineWidth', 1, 'MarkerSize', 10, 'DisplayName', 'Population Average');
+    ylabel(ax, 'Global Best Benchmark Score', 'Color', 'w');
+    h_best = plot(ax, NaN, NaN, 'g.-', 'LineWidth', 2, 'MarkerSize', 15, 'DisplayName', 'Global Best Score');
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
 end
 
 max_tilt_rad = 30 * deg2rad;
 
-for gen = 1:GENERATIONS
-    % Domain Randomization: generate NEW scenarios at every generation.
-    % Seed is shifted per generation to maintain reproducibility of the GA run.
+for gen = 1:generations
     rng(rng_seed + gen * 100);
     seeds = randi([1, 100000], 1, num_scenarios);
     disturbances = cell(num_scenarios, 1);
@@ -94,94 +86,114 @@ for gen = 1:GENERATIONS
         noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
     end
 
-    % A) Evaluate Fitness across all scenarios
-    parfor i = 1:POP_SIZE
-        [fitness_scores(i), robust_scores(i), num_drops(i)] = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
+    flat_pop = reshape(pop, [POP_SIZE, 3]);
+    flat_fit = zeros(POP_SIZE, 1);
+    flat_rob = zeros(POP_SIZE, 1);
+    flat_drop = zeros(POP_SIZE, 1);
+    
+    parfor k = 1:POP_SIZE
+        [flat_fit(k), flat_rob(k), flat_drop(k)] = evaluate_fitness_robust(flat_pop(k,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
     end
     
-    [fitness_scores, sort_idx] = sort(fitness_scores);
-    pop = pop(sort_idx, :);
-    robust_scores = robust_scores(sort_idx);
-    num_drops = num_drops(sort_idx);
+    fitness_scores = reshape(flat_fit, [NUM_ISLANDS, island_pop_size]);
+    robust_scores = reshape(flat_rob, [NUM_ISLANDS, island_pop_size]);
+    num_drops = reshape(flat_drop, [NUM_ISLANDS, island_pop_size]);
     
-    best_fitness = fitness_scores(1);
-    survivors = fitness_scores(fitness_scores < FAILURE_THRESHOLD);
-    if isempty(survivors), avg_fitness = best_fitness; else, avg_fitness = mean(survivors); end
+    new_pop = zeros(NUM_ISLANDS, island_pop_size, 3);
     
-    best_robust = robust_scores(1);
-    best_drops  = num_drops(1);
+    global_best_fit = inf;
+    global_best_idx = [1,1];
+    global_best_rob = -inf;
+    global_best_drops = inf;
     
-    best_fitness_history(gen) = best_fitness;
-    avg_fitness_history(gen)  = avg_fitness;
-    best_score_history(gen)   = best_robust;
-    avg_score_history(gen)    = mean(robust_scores);
+    avg_fit = mean(flat_fit);
     
-    fprintf('Gen %2d | Best Score: %6.2f | Drops: %2d | Elite Genes -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
-        gen, best_robust, best_drops, pop(1,1), pop(1,2), pop(1,3));
+    for i = 1:NUM_ISLANDS
+        [island_fit, sort_idx] = sort(fitness_scores(i, :));
+        island_pop = squeeze(pop(i, sort_idx, :));
+        if island_pop_size == 1, island_pop = reshape(island_pop, 1, 3); end
+        island_rob = robust_scores(i, sort_idx);
+        island_drops = num_drops(i, sort_idx);
+        
+        if island_fit(1) < global_best_fit
+            global_best_fit = island_fit(1);
+            global_best_idx = [i, 1];
+            global_best_rob = island_rob(1);
+            global_best_drops = island_drops(1);
+        end
+        
+        new_island = zeros(island_pop_size, 3);
+        new_island(1,:) = island_pop(1,:);
+        new_island(2,:) = island_pop(2,:);
+        
+        % More aggressive mutation rate: explores much heavier initially
+        mut_rate = 0.50 * (1 - gen/generations) + 0.10;
+        
+        for j = 3:island_pop_size
+            p1_idx = min(randi([1, island_pop_size], 1, 2));
+            p2_idx = min(randi([1, island_pop_size], 1, 2));
+            p1 = island_pop(p1_idx, :); p2 = island_pop(p2_idx, :);
+            
+            alpha = rand();
+            child = alpha * p1 + (1 - alpha) * p2;
+            
+            for g = 1:3
+                if rand() < mut_rate
+                    child(g) = child(g) + randn() * MUTATION_IMPACT * (UB(g) - LB(g)) / 10;
+                end
+                
+                if child(g) > UB(g)
+                    child(g) = UB(g) - (child(g) - UB(g));
+                elseif child(g) < LB(g)
+                    child(g) = LB(g) + (LB(g) - child(g));
+                end
+                child(g) = max(LB(g), min(UB(g), child(g)));
+            end
+            new_island(j,:) = child;
+        end
+        new_pop(i, :, :) = new_island;
+        pop(i, :, :) = island_pop; % Update current with sorted for migration
+    end
+    
+    if mod(gen, MIGRATION_INTERVAL) == 0 && gen ~= generations
+        fprintf('  [MIGRATION] Islands exchanging elite individuals...\n');
+        for i = 1:NUM_ISLANDS
+            target = mod(i, NUM_ISLANDS) + 1; % Ring topology
+            new_pop(target, end, :) = pop(i, 1, :); % Best of source replaces worst of target
+        end
+    end
+    
+    pop = new_pop;
+    
+    best_fitness_history(gen) = global_best_fit;
+    avg_fitness_history(gen)  = avg_fit;
+    best_score_history(gen)   = global_best_rob;
+    
+    best_Kp = pop(global_best_idx(1), 1, 1);
+    best_Ki = pop(global_best_idx(1), 1, 2);
+    best_Kd = pop(global_best_idx(1), 1, 3);
+    
+    fprintf('Gen %2d | Global Best Score: %6.2f | Cost: %8.2f | Drops: %2d | Elite -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
+        gen, global_best_rob, global_best_fit, global_best_drops, best_Kp, best_Ki, best_Kd);
         
     if show_plot && ishandle(fig)
-        % Plot the actual clean benchmark scores
         set(h_best, 'XData', 1:gen, 'YData', best_score_history(1:gen));
-        set(h_avg,  'XData', 1:gen, 'YData', avg_score_history(1:gen));
-        xlim(ax, [1 GENERATIONS]);
+        xlim(ax, [1 generations]);
         ylim(ax, [0 max(best_score_history(1:gen)) * 1.2]);
         drawnow;
     end
     
-    if gen == GENERATIONS, break; end
-    
-    % Less hasty early stopping: only stop if improvement is less than 0.001 over 20 generations
-    if gen > 20
-        if (best_fitness_history(gen-20) - best_fitness) < 0.001
-            fprintf('Early stopping triggered at generation %d (No significant improvement, improvement < 0.001 in 20 generations).\n', gen);
+    if gen > 35
+        if (best_fitness_history(gen-35) - global_best_fit) > -0.001 && (best_fitness_history(gen-35) - global_best_fit) < 0.001
+            fprintf('Early stopping triggered at generation %d.\n', gen);
             break;
         end
     end
-    
-    new_pop = zeros(POP_SIZE, 3);
-    new_pop(1,:) = pop(1,:);
-    new_pop(2,:) = pop(2,:);
-    
-    % Adaptive mutation rate: explores early (0.43), exploits late (0.08)
-    mut_rate = 0.35 * (1 - gen/GENERATIONS) + 0.08;
-    
-    for i = 3:POP_SIZE
-        % Tournament selection (k=2) from full population
-        p1_idx = min(randi([1, POP_SIZE], 1, 2));
-        p2_idx = min(randi([1, POP_SIZE], 1, 2));
-        
-        p1 = pop(p1_idx, :); p2 = pop(p2_idx, :);
-        
-        alpha = rand();
-        child = alpha * p1 + (1 - alpha) * p2;
-        
-        for g = 1:3
-            if rand() < mut_rate
-                % Scale mutation impact by parameter range
-                child(g) = child(g) + randn() * MUTATION_IMPACT * (UB(g) - LB(g)) / 10;
-            end
-            
-            % Reflective bounds
-            if child(g) > UB(g)
-                child(g) = UB(g) - (child(g) - UB(g));
-            elseif child(g) < LB(g)
-                child(g) = LB(g) + (LB(g) - child(g));
-            end
-            % Safety clip
-            child(g) = max(LB(g), min(UB(g), child(g)));
-        end
-        new_pop(i,:) = child;
-    end
-    pop = new_pop;
 end
 
-best_Kp = pop(1,1);
-best_Ki = pop(1,2);
-best_Kd = pop(1,3);
-
 fprintf('\n================================================\n');
-fprintf('ROBUST EVOLUTION COMPLETE!\n');
-fprintf('Optimal PID Parameters Found (Survived %d Scenarios):\n', num_scenarios);
+fprintf('ISLAND GA EVOLUTION COMPLETE!\n');
+fprintf('Optimal PID Parameters Found:\n');
 fprintf('  Kp = %.3f\n', best_Kp);
 fprintf('  Ki = %.3f\n', best_Ki);
 fprintf('  Kd = %.3f\n', best_Kd);

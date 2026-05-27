@@ -31,7 +31,8 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
     ref_metrics = [0.170, 0.28, 2.088, 1.748, 6.08, 11.752];
     w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; % Benchmark weights
 
-    scores = zeros(num_scenarios, 1);
+    costs = zeros(num_scenarios, 1);
+    human_scores = zeros(num_scenarios, 1);
 
     num_drops = 0;
 
@@ -41,7 +42,12 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         if result.fell_off
             has_drop = true;
             num_drops = num_drops + 1;
-            scores(s) = config.drop_penalty;
+            t_drop = result.t_vec(end);
+            % Time-to-failure penalty (Gradient for drops)
+            % If it drops at 1s -> cost is 1000 + 29*100 = 3900
+            % If it drops at 29s -> cost is 1000 + 1*100 = 1100
+            costs(s) = 1000 + (30.0 - t_drop) * 100;
+            human_scores(s) = config.drop_penalty;
             continue;
         end
         
@@ -94,19 +100,19 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
         % Combine metrics into vector
         metrics = [rise_time, settling_time, wind_rejection, rms_err, itae, ctrl_effort];
         
-        % Calculate score for this scenario
-        scores(s) = 100 * sum(w .* max(0, 2 - (metrics ./ ref_metrics)));
+        % --- NEW: Smooth, Unclipped Cost for Algorithm (LOWER IS BETTER) ---
+        costs(s) = sum(w .* (metrics ./ ref_metrics));
+        
+        % --- OLD: Human Readable Score for Logging (HIGHER IS BETTER) ---
+        human_scores(s) = 100 * sum(w .* max(0, 2 - (metrics ./ ref_metrics)));
     end
 
-    avg_score = mean(scores);
-    min_score = min(scores);
+    avg_cost = mean(costs);
+    max_cost = max(costs);
 
-    % Robust score blend: 70% average case + 30% worst-case minimum score
-    robust_score = 0.7 * avg_score + 0.3 * min_score;
-
-    if num_drops > 0
-        fitness = 1e5 * num_drops + (100 - robust_score);
-    else
-        fitness = 100 - robust_score;
-    end
+    % Robust cost blend: 70% average case + 30% worst-case
+    fitness = 0.7 * avg_cost + 0.3 * max_cost;
+    
+    % Return human-readable robust score just for printing
+    robust_score = 0.7 * mean(human_scores) + 0.3 * min(human_scores);
 end

@@ -15,7 +15,8 @@ run('stewart_setup.m');
 global WIND_SCENARIOS;
 WIND_SCENARIOS = {
     struct('name', 'Scenario 1 (0.9 Chaotic + 0.5 Realistic)', 'type', 'combined', 'c_ratio', 0.9, 'r_ratio', 0.5), ...
-    struct('name', 'Scenario 2 (0.4 Chaotic + 0.8 Realistic)', 'type', 'combined', 'c_ratio', 0.4, 'r_ratio', 0.8)
+    struct('name', 'Scenario 2 (0.4 Chaotic + 0.8 Realistic)', 'type', 'combined', 'c_ratio', 0.4, 'r_ratio', 0.8), ...
+    struct('name', 'Scenario 3 (0.0 Chaotic + 1.0 Realistic)', 'type', 'combined', 'c_ratio', 0.0, 'r_ratio', 1.0)
 };
 
 num_wind_modes = length(WIND_SCENARIOS);
