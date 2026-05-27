@@ -173,31 +173,36 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
             corr_i   = ex * int_ex + ey * int_ey;
             corr_d   = ex * dex + ey * dey;
             
-            % Advanced Robust Dead-Zone:
-            % We use a 0.5 cm dead-zone.
-            % Kp and Kd will decay to baseline inside the deadzone (to prevent jitter).
-            % Ki will FREEZE inside the deadzone (to hold the ball against steady wind).
-            deadzone = 0.005; 
+            % Advanced Robust Dual Dead-Zone:
             err_mag = sqrt(e_pos_sq);
-            if err_mag > deadzone
-                adapt_scale = (err_mag - deadzone) / err_mag; 
+            
+            % 1. PD Deadzone (2.0 cm): Kp and Kd only act as an emergency safety net 
+            % for large deviations. If error < 2cm, they stay at optimal baseline.
+            if err_mag > 0.020
+                adapt_scale_pd = (err_mag - 0.020) / err_mag; 
             else
-                adapt_scale = 0.0;
+                adapt_scale_pd = 0.0;
             end
             
-            % Smooth Adaptation
-            % Kp and Kd: Constant leakage (sigma) ensures they return to baseline when safe
-            dKp = params.mrac.gamma_p * (e_pos_sq * adapt_scale) - params.mrac.sigma_p * (Kp_eff - Kp);
-            dKd = params.mrac.gamma_d * (corr_d * adapt_scale)   - params.mrac.sigma_d * (Kd_eff - Kd);
+            % 2. I Deadzone (0.5 cm): Ki activates early to fight steady wind, 
+            % and FREEZES inside the deadzone to hold the ball perfectly.
+            if err_mag > 0.005
+                adapt_scale_i = (err_mag - 0.005) / err_mag;
+            else
+                adapt_scale_i = 0.0;
+            end
             
-            % Ki: Leakage is scaled by adapt_scale. If inside deadzone, Ki freezes!
-            % This completely solves the "breathing" oscillation against steady wind.
-            dKi = params.mrac.gamma_i * (corr_i * adapt_scale) - params.mrac.sigma_i * adapt_scale * (Ki_eff - Ki);
+            % Fast elastic recovery for Kp and Kd (snaps back to baseline quickly)
+            sigma_pd = 5.0; 
+            
+            % Smooth Adaptation
+            dKp = params.mrac.gamma_p * (e_pos_sq * adapt_scale_pd) - sigma_pd * (Kp_eff - Kp);
+            dKd = params.mrac.gamma_d * (corr_d * adapt_scale_pd)   - sigma_pd * (Kd_eff - Kd);
+            
+            % Ki: Leakage is scaled by adapt_scale_i (Freezes inside deadzone)
+            dKi = params.mrac.gamma_i * (corr_i * adapt_scale_i) - params.mrac.sigma_i * adapt_scale_i * (Ki_eff - Ki);
             
             % BALANCED LIMITS for Robust MRAC:
-            % Kp can grow up to 1.15x to catch gusts
-            % Ki can grow up to 5.0x to reject steady wind
-            % Kd can grow up to 2.0x to damp out the increased Kp and turbulence
             Kp_eff = max(Kp, min(Kp * 1.15, Kp_eff + dKp * dt));
             Ki_eff = max(Ki, min(Ki * 5.0, Ki_eff + dKi * dt));
             Kd_eff = max(Kd, min(Kd * 2.0, Kd_eff + dKd * dt));
