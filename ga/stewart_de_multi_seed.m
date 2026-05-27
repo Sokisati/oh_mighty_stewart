@@ -1,7 +1,6 @@
-function [best_Kp, best_Ki, best_Kd] = stewart_ga_multi_seed(num_scenarios, pop_size, generations, show_plot, rng_seed)
-%% stewart_ga_multi_seed.m
-%  Robust Genetic Algorithm: Trains PID across multiple random wind/noise scenarios
-%  (domain randomization)
+function [best_Kp, best_Ki, best_Kd] = stewart_de_multi_seed(num_scenarios, pop_size, generations, show_plot, rng_seed)
+%% stewart_de_multi_seed.m
+%  Robust Differential Evolution (DE/rand/1/bin)
 
 if nargin < 1, num_scenarios = 100; end
 if nargin < 2, pop_size = 30; end
@@ -15,7 +14,7 @@ clc;
 if show_plot, close all; end
 
 fprintf('\n================================================\n');
-fprintf('  STAGE 3: ROBUST GENETIC ALGORITHM PID OPTIMIZATION\n');
+fprintf('  ROBUST DIFFERENTIAL EVOLUTION (DE/rand/1/bin)\n');
 fprintf('================================================\n');
 fprintf('Training config: Scenarios = %d, Pop Size = %d, Generations = %d\n', num_scenarios, pop_size, generations);
 
@@ -25,8 +24,6 @@ r_limit_val = r_limit;
 g_acc_val = g_acc;
 c_roll_val = c_roll;
 
-
-% Respect wind parameters set by RUN_ME.m, or default to robust 'realistic' wind if run directly
 global WIND_TYPE;
 global WIND_C_RATIO;
 global WIND_R_RATIO;
@@ -41,17 +38,16 @@ else
     fprintf('Active Wind Scenario: %s\n', upper(WIND_TYPE));
 end
 
-% 1. GA Parameters & Dynamic Bounds
 POP_SIZE = pop_size;         
 GENERATIONS = generations;      
-MUTATION_IMPACT = 1.0; % Increased from 0.5 to allow larger jumps
-FAILURE_THRESHOLD = 5000; % Threshold to filter out fell_off results
+F_scale = 0.8;
+CR = 0.9;
+FAILURE_THRESHOLD = 5000;
 
 UB = [25.0, 40.0, 10.0];
 LB = [0.0,  0.0,  0.0];
 
-
-% 3. Initialize Random Population
+% Initialize Random Population
 pop = zeros(POP_SIZE, 3);
 for i = 1:POP_SIZE
     pop(i,:) = LB + rand(1,3) .* (UB - LB);
@@ -66,12 +62,11 @@ avg_fitness_history = zeros(GENERATIONS, 1);
 best_score_history = zeros(GENERATIONS, 1);
 avg_score_history = zeros(GENERATIONS, 1);
 
-% 4. Live Plotting
 if show_plot
-    fig = figure('Name', 'Robust GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
+    fig = figure('Name', 'Robust DE Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
     ax = axes('Parent', fig, 'Color', [0.15 0.15 0.18], 'XColor', 'w', 'YColor', 'w');
     hold(ax, 'on'); grid(ax, 'on');
-    title(ax, sprintf('Robust Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
+    title(ax, sprintf('Robust DE Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
     xlabel(ax, 'Generation', 'Color', 'w');
     ylabel(ax, 'Average Benchmark Score', 'Color', 'w');
     h_best = plot(ax, NaN, NaN, 'g.-', 'LineWidth', 2, 'MarkerSize', 15, 'DisplayName', 'Best Fitness');
@@ -82,8 +77,6 @@ end
 max_tilt_rad = 30 * deg2rad;
 
 for gen = 1:GENERATIONS
-    % Domain Randomization: generate NEW scenarios at every generation.
-    % Seed is shifted per generation to maintain reproducibility of the GA run.
     rng(rng_seed + gen * 100);
     seeds = randi([1, 100000], 1, num_scenarios);
     disturbances = cell(num_scenarios, 1);
@@ -93,7 +86,6 @@ for gen = 1:GENERATIONS
         noises{s} = generate_sensor_noise(seeds(s), 30.0, 0.02);
     end
 
-    % A) Evaluate Fitness across all scenarios
     parfor i = 1:POP_SIZE
         [fitness_scores(i), robust_scores(i), num_drops(i)] = evaluate_fitness_robust(pop(i,:), h0_val, r_limit_val, g_acc_val, c_roll_val, max_tilt_rad, disturbances, noises);
     end
@@ -119,7 +111,6 @@ for gen = 1:GENERATIONS
         gen, best_robust, best_drops, pop(1,1), pop(1,2), pop(1,3));
         
     if show_plot && ishandle(fig)
-        % Plot the actual clean benchmark scores
         set(h_best, 'XData', 1:gen, 'YData', best_score_history(1:gen));
         set(h_avg,  'XData', 1:gen, 'YData', avg_score_history(1:gen));
         xlim(ax, [1 GENERATIONS]);
@@ -129,48 +120,43 @@ for gen = 1:GENERATIONS
     
     if gen == GENERATIONS, break; end
     
-    % Less hasty early stopping: only stop if improvement is less than 0.001 over 20 generations
     if gen > 20
         if (best_fitness_history(gen-20) - best_fitness) < 0.001
-            fprintf('Early stopping triggered at generation %d (No significant improvement, improvement < 0.001 in 20 generations).\n', gen);
+            fprintf('Early stopping triggered at generation %d.\n', gen);
             break;
         end
     end
     
-    new_pop = zeros(POP_SIZE, 3);
-    new_pop(1,:) = pop(1,:);
-    new_pop(2,:) = pop(2,:);
-    
-    % Adaptive mutation rate: explores early (0.43), exploits late (0.08)
-    mut_rate = 0.35 * (1 - gen/GENERATIONS) + 0.08;
-    
-    for i = 3:POP_SIZE
-        % Tournament selection (k=2) from full population
-        p1_idx = min(randi([1, POP_SIZE], 1, 2));
-        p2_idx = min(randi([1, POP_SIZE], 1, 2));
+    new_pop = pop;
+    for i = 1:POP_SIZE
+        idx = randperm(POP_SIZE, 3);
+        while any(idx == i)
+            idx = randperm(POP_SIZE, 3);
+        end
+        r1 = idx(1); r2 = idx(2); r3 = idx(3);
         
-        p1 = pop(p1_idx, :); p2 = pop(p2_idx, :);
-        
-        alpha = rand();
-        child = alpha * p1 + (1 - alpha) * p2;
+        v = pop(r1, :) + F_scale * (pop(r2, :) - pop(r3, :));
         
         for g = 1:3
-            if rand() < mut_rate
-                % Scale mutation impact by parameter range
-                child(g) = child(g) + randn() * MUTATION_IMPACT * (UB(g) - LB(g)) / 10;
-            end
-            
-            % Reflective bounds
-            if child(g) > UB(g)
-                child(g) = UB(g) - (child(g) - UB(g));
-            elseif child(g) < LB(g)
-                child(g) = LB(g) + (LB(g) - child(g));
-            end
-            % Safety clip
-            child(g) = max(LB(g), min(UB(g), child(g)));
+            v(g) = max(LB(g), min(UB(g), v(g)));
         end
-        new_pop(i,:) = child;
+        
+        j_rand = randi([1, 3]);
+        u = pop(i, :);
+        for g = 1:3
+            if rand() <= CR || g == j_rand
+                u(g) = v(g);
+            end
+        end
+        
+        new_pop(i, :) = u;
     end
+    
+    % Optional: evaluate candidates and only keep if better (standard DE logic)
+    % For multi-scenario robust optimization, since fitness landscape is noisy and changes slightly, 
+    % we evaluate all in the next generation. So we just set pop = new_pop.
+    % To preserve elitism, we guarantee the best stays.
+    new_pop(1,:) = pop(1,:); 
     pop = new_pop;
 end
 
@@ -179,8 +165,8 @@ best_Ki = pop(1,2);
 best_Kd = pop(1,3);
 
 fprintf('\n================================================\n');
-fprintf('ROBUST EVOLUTION COMPLETE!\n');
-fprintf('Optimal PID Parameters Found (Survived %d Scenarios):\n', num_scenarios);
+fprintf('ROBUST DE EVOLUTION COMPLETE!\n');
+fprintf('Optimal PID Parameters Found:\n');
 fprintf('  Kp = %.3f\n', best_Kp);
 fprintf('  Ki = %.3f\n', best_Ki);
 fprintf('  Kd = %.3f\n', best_Kd);
