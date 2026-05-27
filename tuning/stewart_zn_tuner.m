@@ -119,7 +119,7 @@ if ~isempty(best_res)
     title(ax1, 'Eksenel Konum Değişimleri (X ve Y)', 'FontSize', 12, 'Color', 'k');
     xlabel(ax1, 'Zaman (s)', 'FontSize', 11, 'Color', 'k'); 
     ylabel(ax1, 'Pozisyon (cm)', 'FontSize', 11, 'Color', 'k');
-    legend(ax1, 'X Ekseni', 'Y Ekseni', 'Merkez (0 cm)', 'Location', 'northeast', 'TextColor', 'k'); 
+    legend(ax1, 'X Ekseni', 'Y Ekseni', 'Merkez (0 cm)', 'Location', 'northeast', 'Color', 'w', 'TextColor', 'k', 'EdgeColor', [0.8 0.8 0.8]); 
     grid(ax1, 'on');
     set(ax1, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
     
@@ -133,7 +133,7 @@ if ~isempty(best_res)
     title(ax2, 'Radyal Salınım Genliği ve Kritik Periyot (Tu) Tespiti', 'FontSize', 12, 'Color', 'k');
     xlabel(ax2, 'Zaman (s)', 'FontSize', 11, 'Color', 'k'); 
     ylabel(ax2, 'Radyal Uzaklık (cm)', 'FontSize', 11, 'Color', 'k');
-    legend(ax2, 'Sistem Yanıtı', 'Tepe Noktaları', 'Ortalama Genlik', 'Location', 'northeast', 'TextColor', 'k'); 
+    legend(ax2, 'Sistem Yanıtı', 'Tepe Noktaları', 'Ortalama Genlik', 'Location', 'northeast', 'Color', 'w', 'TextColor', 'k', 'EdgeColor', [0.8 0.8 0.8]); 
     grid(ax2, 'on');
     set(ax2, 'Color', 'w', 'XColor', 'k', 'YColor', 'k', 'GridAlpha', 0.15, 'FontSize', 10);
     
