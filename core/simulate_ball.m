@@ -173,10 +173,23 @@ function result = simulate_ball(Kp, Ki, Kd, params, disturb_table, noise_table)
             corr_i   = ex * int_ex + ey * int_ey;
             corr_d   = ex * dex + ey * dey;
             
-            % Smooth Adaptation (No IF switches for normal gradient)
-            dKp = params.mrac.gamma_p * e_pos_sq - params.mrac.sigma_p * (Kp_eff - Kp);
-            dKi = params.mrac.gamma_i * corr_i   - params.mrac.sigma_i * (Ki_eff - Ki);
-            dKd = params.mrac.gamma_d * corr_d   - params.mrac.sigma_d * (Kd_eff - Kd);
+            % Robust Dead-Zone Modification:
+            % If the baseline PID is already perfect, small errors (noise/micro-turbulence) 
+            % will cause MRAC to constantly twitch and degrade performance.
+            % We only adapt if the ball is pushed beyond 1.0 cm.
+            deadzone = 0.010; 
+            err_mag = sqrt(e_pos_sq);
+            if err_mag > deadzone
+                % Smooth transition (0 at deadzone boundary, approaches 1 as error grows)
+                adapt_scale = (err_mag - deadzone) / err_mag; 
+            else
+                adapt_scale = 0.0;
+            end
+            
+            % Smooth Adaptation (Gradient driven by scaled error)
+            dKp = params.mrac.gamma_p * (e_pos_sq * adapt_scale) - params.mrac.sigma_p * (Kp_eff - Kp);
+            dKi = params.mrac.gamma_i * (corr_i * adapt_scale)   - params.mrac.sigma_i * (Ki_eff - Ki);
+            dKd = params.mrac.gamma_d * (corr_d * adapt_scale)   - params.mrac.sigma_d * (Kd_eff - Kd);
             
             % BALANCED LIMITS for Robust MRAC:
             % Kp can grow up to 1.15x to catch gusts and fix baselines without causing vibrations
