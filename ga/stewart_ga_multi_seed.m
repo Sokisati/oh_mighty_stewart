@@ -57,16 +57,23 @@ end
 best_fitness_history = zeros(generations, 1);
 avg_fitness_history = zeros(generations, 1);
 best_score_history = zeros(generations, 1);
+island_best_score_history = zeros(generations, NUM_ISLANDS);
 
 if show_plot
-    fig = figure('Name', 'Robust Island GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 800 500]);
+    fig = figure('Name', 'Robust Island GA Evolution', 'Color', [0.1 0.1 0.12], 'Position', [200 200 900 550]);
     ax = axes('Parent', fig, 'Color', [0.15 0.15 0.18], 'XColor', 'w', 'YColor', 'w');
     hold(ax, 'on'); grid(ax, 'on');
     title(ax, sprintf('Island GA Evolution (Best Score across %d Scenarios)', num_scenarios), 'Color', 'w', 'FontSize', 12);
     xlabel(ax, 'Generation', 'Color', 'w');
-    ylabel(ax, 'Global Best Benchmark Score', 'Color', 'w');
-    h_best = plot(ax, NaN, NaN, 'g.-', 'LineWidth', 2, 'MarkerSize', 15, 'DisplayName', 'Global Best Score');
-    legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2]);
+    ylabel(ax, 'Best Benchmark Score', 'Color', 'w');
+    
+    colors = lines(NUM_ISLANDS);
+    h_islands = gobjects(NUM_ISLANDS, 1);
+    for i=1:NUM_ISLANDS
+        h_islands(i) = plot(ax, NaN, NaN, '-', 'Color', [colors(i,:) 0.5], 'LineWidth', 1.5, 'DisplayName', sprintf('Island %d Best', i));
+    end
+    h_best = plot(ax, NaN, NaN, 'w.-', 'LineWidth', 2.5, 'MarkerSize', 15, 'DisplayName', 'Global Best Score');
+    legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2], 'Location', 'southeast');
 end
 
 rng(rng_seed);
@@ -117,6 +124,7 @@ for gen = 1:generations
             global_best_rob = island_rob(1);
             global_best_drops = island_drops(1);
         end
+        island_best_score_history(gen, i) = island_rob(1);
         
         new_island = zeros(island_pop_size, 3);
         new_island(1,:) = island_pop(1,:);
@@ -156,6 +164,9 @@ for gen = 1:generations
             target = mod(i, NUM_ISLANDS) + 1; % Ring topology
             new_pop(target, end, :) = pop(i, 1, :); % Best of source replaces worst of target
         end
+        if show_plot && ishandle(fig)
+            xline(ax, gen, '--y', 'Migration', 'LabelVerticalAlignment', 'bottom', 'Color', [0.8 0.8 0.2 0.6], 'HandleVisibility', 'off');
+        end
     end
     
     pop = new_pop;
@@ -172,9 +183,11 @@ for gen = 1:generations
         gen, global_best_rob, global_best_fit, global_best_drops, best_Kp, best_Ki, best_Kd);
         
     if show_plot && ishandle(fig)
+        for i=1:NUM_ISLANDS
+            set(h_islands(i), 'XData', 1:gen, 'YData', island_best_score_history(1:gen, i));
+        end
         set(h_best, 'XData', 1:gen, 'YData', best_score_history(1:gen));
-        xlim(ax, [1 generations]);
-        ylim(ax, [0 max(best_score_history(1:gen)) * 1.2]);
+        xlim(ax, [1 max(2, gen)]);
         drawnow;
     end
     
