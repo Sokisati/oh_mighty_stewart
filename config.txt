@@ -68,3 +68,10 @@ cmaes_generations = 120   # Number of generations for CMA-ES
 
 manual_sens_init  = 1.0   # Initial sensitivity multiplier for manual mode
 manual_sens_step  = 0.1   # Sensitivity step size for W/S keys
+
+weight_rise_time   = 0.05    # Benchmark Score Weight for Rise Time
+weight_settling    = 0.10    # Benchmark Score Weight for Settling Time
+weight_wind_reject = 0.20    # Benchmark Score Weight for Wind Rejection (RMS)
+weight_steady_err  = 0.30    # Benchmark Score Weight for Steady-State Error (RMS)
+weight_itae        = 0.25    # Benchmark Score Weight for ITAE
+weight_ctrl_effort = 0.10    # Benchmark Score Weight for Control Effort (Actuation)

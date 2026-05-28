@@ -25,7 +25,8 @@ function [fitness, robust_score, num_drops] = evaluate_fitness_robust(K_pid, h0,
     has_drop = false;
     
     ref_metrics = [0.170, 0.28, 2.088, 1.748, 6.08, 11.752];
-    w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; % Benchmark weights
+    w = [config.weight_rise_time, config.weight_settling, config.weight_wind_reject, ...
+         config.weight_steady_err, config.weight_itae, config.weight_ctrl_effort]; % Benchmark weights
 
     costs = zeros(num_scenarios, 1);
     human_scores = zeros(num_scenarios, 1);

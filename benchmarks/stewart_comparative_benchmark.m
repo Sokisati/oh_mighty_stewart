@@ -71,7 +71,8 @@ for sc = 1:num_wind_modes
     end
 end
 
-w = [0.05, 0.10, 0.20, 0.30, 0.25, 0.10]; 
+w = [config.weight_rise_time, config.weight_settling, config.weight_wind_reject, ...
+     config.weight_steady_err, config.weight_itae, config.weight_ctrl_effort];
 
 for sc = 1:num_wind_modes
     scen = WIND_SCENARIOS{sc};
