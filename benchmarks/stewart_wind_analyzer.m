@@ -31,8 +31,9 @@ half1 = [linspace(c_red(1), c_yel(1), 32)', linspace(c_red(2), c_yel(2), 32)', l
 half2 = [linspace(c_yel(1), c_blu(1), 32)', linspace(c_yel(2), c_blu(2), 32)', linspace(c_yel(3), c_blu(3), 32)'];
 cmap = [half1; half2];
 
-fig1 = figure('Name', 'Chaotic Wind Analysis', 'Color', [0.10 0.10 0.13], ...
-              'NumberTitle', 'off', 'Position', [50, 100, 800, 800]);
+if c_ratio > 0
+    fig1 = figure('Name', sprintf('Chaotic Wind Analysis (Seed: %d)', seed), 'Color', [0.10 0.10 0.13], ...
+                  'NumberTitle', 'off', 'Position', [50, 100, 800, 800]);
 
 num_kicks_c = size(chaotic_wind, 1);
 
@@ -46,6 +47,7 @@ xlim([-0.5 0.5]); ylim([-0.5 0.5]);
 xlabel('Wind v_x [m/s]', 'Color', [0.8 0.8 0.8]); 
 ylabel('Wind v_y [m/s]', 'Color', [0.8 0.8 0.8]);
 title('Chaotic Wind - Vector Map (Origin Arrows)', 'Color', [0.95 0.95 0.95], 'FontWeight', 'bold');
+annotation(fig1, 'textbox', [0.0, 0.65, 0.13, 0.2], 'String', sprintf('Seed:\n%d', seed), 'Color', [0.8 0.8 0.8], 'FontWeight', 'bold', 'FontSize', 24, 'LineStyle', 'none', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 ax1_bot = subplot(2, 1, 2);
 set(ax1_bot, 'Color', [0.08 0.08 0.10], 'GridColor', [0.4 0.4 0.4], ...
@@ -84,9 +86,11 @@ caxis(ax1_bot, [0 T_sim]);
 cb2.Color = [0.8 0.8 0.8];
 cb2.Label.String = 'Time [s]';
 cb2.Label.Color = [0.8 0.8 0.8];
+end
 
-fig2 = figure('Name', 'Realistic Wind Analysis', 'Color', [0.10 0.10 0.13], ...
-              'NumberTitle', 'off', 'Position', [900, 100, 800, 800]);
+if r_ratio > 0
+    fig2 = figure('Name', sprintf('Realistic Wind Analysis (Seed: %d)', seed), 'Color', [0.10 0.10 0.13], ...
+                  'NumberTitle', 'off', 'Position', [900, 100, 800, 800]);
 
 num_kicks_r = size(realistic_wind, 1);
 
@@ -100,6 +104,7 @@ xlim([-0.5 0.5]); ylim([-0.5 0.5]);
 xlabel('Wind v_x [m/s]', 'Color', [0.8 0.8 0.8]); 
 ylabel('Wind v_y [m/s]', 'Color', [0.8 0.8 0.8]);
 title('Realistic Wind - Vector Map (Origin Arrows)', 'Color', [0.95 0.95 0.95], 'FontWeight', 'bold');
+annotation(fig2, 'textbox', [0.0, 0.65, 0.13, 0.2], 'String', sprintf('Seed:\n%d', seed), 'Color', [0.8 0.8 0.8], 'FontWeight', 'bold', 'FontSize', 24, 'LineStyle', 'none', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 ax2_bot = subplot(2, 1, 2);
 set(ax2_bot, 'Color', [0.08 0.08 0.10], 'GridColor', [0.4 0.4 0.4], ...
@@ -138,9 +143,11 @@ caxis(ax2_bot, [0 T_sim]);
 cb4.Color = [0.8 0.8 0.8];
 cb4.Label.String = 'Time [s]';
 cb4.Label.Color = [0.8 0.8 0.8];
+end
 
-fig3 = figure('Name', 'Combined Wind Analysis', 'Color', [0.10 0.10 0.13], ...
-              'NumberTitle', 'off', 'Position', [100, 100, 800, 800]);
+if c_ratio > 0 && r_ratio > 0
+    fig3 = figure('Name', sprintf('Combined Wind Analysis (Seed: %d)', seed), 'Color', [0.10 0.10 0.13], ...
+                  'NumberTitle', 'off', 'Position', [100, 100, 800, 800]);
 
 num_kicks_comb = size(combined_wind, 1);
 
@@ -154,6 +161,7 @@ xlim([-0.5 0.5]); ylim([-0.5 0.5]);
 xlabel('Wind v_x [m/s]', 'Color', [0.8 0.8 0.8]); 
 ylabel('Wind v_y [m/s]', 'Color', [0.8 0.8 0.8]);
 title(sprintf('Combined Wind (c=%.2f, r=%.2f) - Vector Map', c_ratio, r_ratio), 'Color', [0.95 0.95 0.95], 'FontWeight', 'bold');
+annotation(fig3, 'textbox', [0.0, 0.65, 0.13, 0.2], 'String', sprintf('Seed:\n%d', seed), 'Color', [0.8 0.8 0.8], 'FontWeight', 'bold', 'FontSize', 24, 'LineStyle', 'none', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle');
 
 ax3_bot = subplot(2, 1, 2);
 set(ax3_bot, 'Color', [0.08 0.08 0.10], 'GridColor', [0.4 0.4 0.4], ...
@@ -188,5 +196,6 @@ cb5.Color = [0.8 0.8 0.8]; cb5.Label.String = 'Time [s]'; cb5.Label.Color = [0.8
 cb6 = colorbar(ax3_bot, 'eastoutside');
 caxis(ax3_bot, [0 T_sim]);
 cb6.Color = [0.8 0.8 0.8]; cb6.Label.String = 'Time [s]'; cb6.Label.Color = [0.8 0.8 0.8];
+end
 
 fprintf('Visualizations are ready on the figure windows.\n\n');
