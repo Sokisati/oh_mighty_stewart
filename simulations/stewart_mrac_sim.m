@@ -129,8 +129,9 @@ for i = 1:N
 
         if bw(3) < r_ball   % hit floor
             bw(3) = r_ball;
-            ball_world_pid(i:end,:) = repmat(bw', N-i+1, 1);
-            break;
+            fall_pos_pid = [bw(1); bw(2); r_ball];
+            fall_vel_pid = [0; 0; 0];
+            fall_start_pid = i;
         end
         ball_world_pid(i,:) = bw';
     end
