@@ -45,7 +45,7 @@ for sc = 1:num_wind_modes
     
     fprintf('--- TRAINING PHASE ---\n');
     fprintf('[GA] Training Robust Island Genetic Algorithm...\n');
-    [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, false, 42);
+    [Kp_ga, Ki_ga, Kd_ga] = stewart_ga_multi_seed(50, config.ga_pop_size, config.ga_generations, true, 42);
     Params{2, sc} = [Kp_ga, Ki_ga, Kd_ga];
     
     fprintf('[CMA-ES] Training Robust IPOP-CMA-ES...\n');

@@ -57,6 +57,7 @@ end
 best_fitness_history = zeros(generations, 1);
 avg_fitness_history = zeros(generations, 1);
 best_score_history = zeros(generations, 1);
+avg_score_history = zeros(generations, 1);
 island_best_score_history = zeros(generations, NUM_ISLANDS);
 
 if show_plot
@@ -73,6 +74,7 @@ if show_plot
         h_islands(i) = plot(ax, NaN, NaN, '-', 'Color', [colors(i,:) 0.5], 'LineWidth', 1.5, 'DisplayName', sprintf('Island %d Best', i));
     end
     h_best = plot(ax, NaN, NaN, 'w.-', 'LineWidth', 2.5, 'MarkerSize', 15, 'DisplayName', 'Global Best Score');
+    h_avg = plot(ax, NaN, NaN, 'g--', 'LineWidth', 1.8, 'DisplayName', 'Population Avg Score');
     legend(ax, 'TextColor', 'w', 'Color', [0.2 0.2 0.2], 'Location', 'southeast');
 end
 
@@ -175,18 +177,22 @@ for gen = 1:generations
     avg_fitness_history(gen)  = avg_fit;
     best_score_history(gen)   = global_best_rob;
     
+    avg_rob = mean(flat_rob);
+    avg_score_history(gen) = avg_rob;
+    
     best_Kp = pop(global_best_idx(1), 1, 1);
     best_Ki = pop(global_best_idx(1), 1, 2);
     best_Kd = pop(global_best_idx(1), 1, 3);
     
-    fprintf('Gen %2d | Global Best Score: %6.2f | Cost: %8.2f | Drops: %2d | Elite -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
-        gen, global_best_rob, global_best_fit, global_best_drops, best_Kp, best_Ki, best_Kd);
+    fprintf('Gen %2d | Best Score: %6.2f | Avg Score: %6.2f | Cost: %8.2f | Avg Cost: %8.2f | Drops: %2d | Elite -> Kp: %4.2f, Ki: %4.2f, Kd: %4.2f\n', ...
+        gen, global_best_rob, avg_rob, global_best_fit, avg_fit, global_best_drops, best_Kp, best_Ki, best_Kd);
         
     if show_plot && ishandle(fig)
         for i=1:NUM_ISLANDS
             set(h_islands(i), 'XData', 1:gen, 'YData', island_best_score_history(1:gen, i));
         end
         set(h_best, 'XData', 1:gen, 'YData', best_score_history(1:gen));
+        set(h_avg, 'XData', 1:gen, 'YData', avg_score_history(1:gen));
         xlim(ax, [1 max(2, gen)]);
         drawnow;
     end
