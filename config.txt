@@ -17,9 +17,9 @@ delay_sec    = 0.04    # Actuator loop delay [seconds] (sensor latency + servo t
 slew_rate_deg = 250.0   # Maximum platform angular velocity [degrees/second]
 max_tilt_deg = 30.0     # Maximum platform tilt angle [degrees]
 
-Kp = 8.20
-Ki = 0.80
-Kd = 1.722
+Kp = 8.1889
+Ki = 0.7975
+Kd = 1.6155
 
 dt           = 0.02     # Time step [seconds] (100 Hz simulation for stability)
 T_sim        = 30.0     # Simulation duration [seconds]

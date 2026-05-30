@@ -29,6 +29,7 @@ fprintf('  [4] Ziegler-Nichols Auto-Tuner \n');
 fprintf('  [5] Evolutionary Benchmark \n');
 fprintf('  [6] Adaptive PID Benchmark  \n');
 fprintf('  [7] Ultimate Benchmark      \n\n');
+fprintf('  Press any other number to exit program \n');
 
 choice = input('Enter choice (1-7, Enter = 1): ', 's');
 if isempty(choice), choice = '1'; end
